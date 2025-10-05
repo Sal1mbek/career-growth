@@ -11,6 +11,11 @@ from apps.directory.views import (
     CompetencyRequirementViewSet, ProviderViewSet, TrainingCourseViewSet
 )
 
+from apps.officers.views import (
+    PositionHistoryViewSet, OfficerDocumentViewSet,
+    CourseEnrollmentViewSet, CertificateViewSet
+)
+
 router = DefaultRouter()
 
 # Users
@@ -29,5 +34,11 @@ router.register(r'directory/competencies', CompetencyViewSet, basename='dir-comp
 router.register(r'directory/competency-requirements', CompetencyRequirementViewSet, basename='dir-competency-reqs')
 router.register(r'directory/providers', ProviderViewSet, basename='dir-providers')
 router.register(r'directory/courses', TrainingCourseViewSet, basename='dir-courses')
+
+# Officers
+router.register(r'officers/position-history', PositionHistoryViewSet, basename='officer-history')
+router.register(r'officers/documents', OfficerDocumentViewSet, basename='officer-docs')
+router.register(r'officers/enrollments', CourseEnrollmentViewSet, basename='officer-enrollments')
+router.register(r'officers/certificates', CertificateViewSet, basename='officer-certificates')
 
 urlpatterns = router.urls
