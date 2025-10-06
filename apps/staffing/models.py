@@ -18,6 +18,11 @@ class Vacancy(models.Model):
     open_to = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=VacancyStatus.choices, default=VacancyStatus.OPEN)
 
+    def __str__(self):
+        pos = self.position.title if self.position else "—"
+        unit = self.unit.name if self.unit else "—"
+        return f"{pos} • {unit} • {self.get_status_display()}"
+
     class Meta:
         indexes = [models.Index(fields=['status'])]
 
@@ -30,6 +35,11 @@ class CandidateMatch(models.Model):
     gaps = models.JSONField(default=list, blank=True)  # список {competency, current, required}
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        officer = self.officer.full_name or self.officer.user.email
+        pos = self.vacancy.position.title if self.vacancy and self.vacancy.position else "—"
+        return f"{officer} ↔ {pos} ({self.match_score}%)"
+
     class Meta:
         unique_together = ('vacancy', 'officer')
 
@@ -40,6 +50,11 @@ class Assignment(models.Model):
     state = FSMField(default='draft', protected=True)
     decision_chain = models.JSONField(default=list)
     decided_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        officer = self.officer.full_name or self.officer.user.email
+        pos = self.vacancy.position.title if self.vacancy and self.vacancy.position else "—"
+        return f"{pos} → {officer} [{self.state}]"
 
     @transition(field=state, source='draft', target='recommended')
     def recommend(self, by_user):

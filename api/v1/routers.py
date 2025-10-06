@@ -20,6 +20,8 @@ from apps.assessments.views import AssessmentViewSet, RaterViewSet, CompetencyRa
 
 from apps.career.views import CareerTrajectoryViewSet, PlanStepViewSet, RecommendationViewSet
 
+from apps.staffing.views import VacancyViewSet, CandidateMatchViewSet, AssignmentViewSet
+
 router = DefaultRouter()
 
 # Users
@@ -54,5 +56,10 @@ router.register(r'assessments/ratings', CompetencyRatingViewSet, basename='ratin
 router.register(r'career/trajectories', CareerTrajectoryViewSet, basename='career-trajectory')
 router.register(r'career/steps', PlanStepViewSet, basename='career-step')
 router.register(r'career/recommendations', RecommendationViewSet, basename='career-recommendation')
+
+# Staffing (Vacancy)
+router.register(r'staffing/vacancies', VacancyViewSet, basename='vacancies')
+router.register(r'staffing/candidates', CandidateMatchViewSet, basename='candidates')
+router.register(r'staffing/assignments', AssignmentViewSet, basename='assignments')
 
 urlpatterns = router.urls
