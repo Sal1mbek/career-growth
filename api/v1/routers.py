@@ -16,6 +16,8 @@ from apps.officers.views import (
     CourseEnrollmentViewSet, CertificateViewSet
 )
 
+from apps.assessments.views import AssessmentViewSet, RaterViewSet, CompetencyRatingViewSet
+
 router = DefaultRouter()
 
 # Users
@@ -40,5 +42,10 @@ router.register(r'officers/position-history', PositionHistoryViewSet, basename='
 router.register(r'officers/documents', OfficerDocumentViewSet, basename='officer-docs')
 router.register(r'officers/enrollments', CourseEnrollmentViewSet, basename='officer-enrollments')
 router.register(r'officers/certificates', CertificateViewSet, basename='officer-certificates')
+
+# Assessment (Аттестации и оценки)
+router.register(r'assessments', AssessmentViewSet, basename='assessments')
+router.register(r'assessments/raters', RaterViewSet, basename='raters')
+router.register(r'assessments/ratings', CompetencyRatingViewSet, basename='ratings')
 
 urlpatterns = router.urls

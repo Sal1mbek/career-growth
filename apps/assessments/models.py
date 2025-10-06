@@ -16,6 +16,9 @@ class Assessment(models.Model):
     created_by = models.ForeignKey('users.CustomUser', on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"{self.officer.user.email} • {self.cycle} • {self.get_assessment_type_display()}"
+
 
 class AssessmentItem(models.Model):
     """Оценка по компетенции в рамках аттестации"""
@@ -41,12 +44,18 @@ class CompetencyRating(models.Model):
     class Meta:
         unique_together = ('officer', 'competency', 'source', 'assessed_at')
 
+    def __str__(self):
+        return f"{self.officer.user.email} • {self.competency.name} • {self.score}"
+
 
 class Rater(models.Model):
     user = models.ForeignKey('users.CustomUser', on_delete=models.CASCADE)
     relation = models.CharField(max_length=20, choices=[
         ('COMMANDER', 'Командир'), ('COLLEAGUE', 'Коллега'), ('SUBORDINATE', 'Подчинённый')
     ])
+
+    def __str__(self):
+        return f"{self.user.email} • {self.get_relation_display()}"
 
 
 class Feedback360(models.Model):

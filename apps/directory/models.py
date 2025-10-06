@@ -32,7 +32,9 @@ class Position(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
-    def __str__(self): return self.title
+    def __str__(self):
+        unit = self.unit.name if self.unit else ""
+        return f"{self.title} ({unit})"
 
 
 class PositionRequirement(models.Model):
@@ -49,7 +51,8 @@ class Competency(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
-    def __str__(self): return f"{self.code} — {self.name}"
+    def __str__(self):
+        return f"{self.name} [{self.code}]"
 
 
 class CompetencyRequirement(models.Model):

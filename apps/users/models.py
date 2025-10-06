@@ -77,15 +77,28 @@ class OfficerProfile(models.Model):
 
     service_start_date = models.DateField()
 
+    def __str__(self):
+        name = self.full_name or self.user.email
+        rank = self.rank.name if self.rank else ""
+        unit = self.unit.name if self.unit else ""
+        parts = [p for p in [name, rank, unit] if p]
+        return " / ".join(parts)
+
 
 class CommanderProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='commander_profile')
     unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT)
 
+    def __str__(self):
+        return f"{self.user.email} / {self.unit.name if self.unit else ''}"
+
 
 class HRProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='hr_profile')
     responsible_units = models.ManyToManyField('directory.Unit', related_name='hr_responsibles', blank=True)
+
+    def __str__(self):
+        return self.user.email
 
 
 class CommanderAssignment(models.Model):
