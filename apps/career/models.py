@@ -16,6 +16,9 @@ class CareerTrajectory(models.Model):
     status = models.CharField(max_length=20, choices=TrajectoryStatus.choices, default=TrajectoryStatus.DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"{self.officer.full_name} → {self.target_position.title} ({self.get_status_display()})"
+
     class Meta:
         indexes = [models.Index(fields=['status'])]
 
@@ -34,6 +37,9 @@ class PlanStep(models.Model):
     completed_at = models.DateField(null=True, blank=True)
     required_min_score = models.IntegerField(null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.title} ({self.get_step_type_display()})"
+
     class Meta:
         indexes = [models.Index(fields=['due_date'])]
 
@@ -48,3 +54,6 @@ class Recommendation(models.Model):
     kind = models.CharField(max_length=20, choices=RecommendationKind.choices)
     payload = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.officer.full_name} → {self.get_kind_display()}"

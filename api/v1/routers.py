@@ -18,6 +18,8 @@ from apps.officers.views import (
 
 from apps.assessments.views import AssessmentViewSet, RaterViewSet, CompetencyRatingViewSet
 
+from apps.career.views import CareerTrajectoryViewSet, PlanStepViewSet, RecommendationViewSet
+
 router = DefaultRouter()
 
 # Users
@@ -47,5 +49,10 @@ router.register(r'officers/certificates', CertificateViewSet, basename='officer-
 router.register(r'assessments', AssessmentViewSet, basename='assessments')
 router.register(r'assessments/raters', RaterViewSet, basename='raters')
 router.register(r'assessments/ratings', CompetencyRatingViewSet, basename='ratings')
+
+# Career
+router.register(r'career/trajectories', CareerTrajectoryViewSet, basename='career-trajectory')
+router.register(r'career/steps', PlanStepViewSet, basename='career-step')
+router.register(r'career/recommendations', RecommendationViewSet, basename='career-recommendation')
 
 urlpatterns = router.urls
