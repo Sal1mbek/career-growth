@@ -22,6 +22,10 @@ from apps.career.views import CareerTrajectoryViewSet, PlanStepViewSet, Recommen
 
 from apps.staffing.views import VacancyViewSet, CandidateMatchViewSet, AssignmentViewSet
 
+from apps.comms.views import (
+    NotificationViewSet, SupportTicketViewSet, TicketMessageViewSet
+)
+
 router = DefaultRouter()
 
 # Users
@@ -61,5 +65,10 @@ router.register(r'career/recommendations', RecommendationViewSet, basename='care
 router.register(r'staffing/vacancies', VacancyViewSet, basename='vacancies')
 router.register(r'staffing/candidates', CandidateMatchViewSet, basename='candidates')
 router.register(r'staffing/assignments', AssignmentViewSet, basename='assignments')
+
+# Communication and support
+router.register(r'comms/notifications', NotificationViewSet, basename='notifications')
+router.register(r'comms/tickets', SupportTicketViewSet, basename='tickets')
+router.register(r'comms/ticket-messages', TicketMessageViewSet, basename='ticket-messages')
 
 urlpatterns = router.urls

@@ -43,12 +43,19 @@ class SupportTicket(models.Model):
                                 db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"[{self.id}] {self.subject or 'Без темы'} ({self.get_status_display()})"
+
 
 class TicketMessage(models.Model):
     ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name='messages')
     author = models.ForeignKey('users.CustomUser', on_delete=models.CASCADE)
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        author = self.author.email if self.author else "Система"
+        return f"{author}: {self.text[:50]}..."
 
     class Meta:
         ordering = ['created_at']
