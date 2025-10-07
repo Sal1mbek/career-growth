@@ -26,6 +26,10 @@ from apps.comms.views import (
     NotificationViewSet, SupportTicketViewSet, TicketMessageViewSet
 )
 
+from apps.insights.views import TrajectoryForecastViewSet
+
+from apps.audit.views import AuditLogViewSet
+
 router = DefaultRouter()
 
 # Users
@@ -70,5 +74,11 @@ router.register(r'staffing/assignments', AssignmentViewSet, basename='assignment
 router.register(r'comms/notifications', NotificationViewSet, basename='notifications')
 router.register(r'comms/tickets', SupportTicketViewSet, basename='tickets')
 router.register(r'comms/ticket-messages', TicketMessageViewSet, basename='ticket-messages')
+
+# Insights
+router.register(r'insights/forecasts', TrajectoryForecastViewSet, basename='insights-forecasts')
+
+# Audit
+router.register(r'audit/logs', AuditLogViewSet, basename='audit-logs')
 
 urlpatterns = router.urls

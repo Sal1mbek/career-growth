@@ -66,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.audit.middleware.AuditRequestMiddleware'
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -144,6 +145,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.CustomUser'
+
+AUDIT_IGNORED_PATHS = (
+    "/static/", "/media/", "/favicon.ico",
+    "/api/schema", "/api/docs",
+    "/admin/js/", "/admin/css/", "/admin/img/",
+)
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',

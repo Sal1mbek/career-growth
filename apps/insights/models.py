@@ -12,3 +12,6 @@ class TrajectoryForecast(models.Model):
     horizon_months = models.PositiveSmallIntegerField()
     model_version = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.officer.full_name} → {self.target_position.title} • {self.probability}% / {self.horizon_months}м / {self.model_version}"
