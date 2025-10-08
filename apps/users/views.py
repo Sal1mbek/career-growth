@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils import timezone
+
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,6 +21,7 @@ from .serializers import (
     CommanderAssignmentSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
     PasswordChangeSerializer
 )
+from .utils import send_verification_email
 
 User = get_user_model()
 
@@ -36,30 +38,15 @@ class AuthViewSet(viewsets.ViewSet):
 
         link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/verify-email/{user.id}"
         try:
-            send_mail(
-                "Подтверждение регистрации",
-                f"Перейдите по ссылке для подтверждения: {link}",
-                getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com'),
-                [user.email],
-                fail_silently=True
-            )
+            send_verification_email(user, request)
         except Exception:
             pass
 
-        return Response({"message": "Пользователь зарегистрирован. Проверьте email."}, status=201)
+        return Response(
+            {"message": "Пользователь зарегистрирован. Проверьте email для подтверждения."},
+            status=status.HTTP_201_CREATED
+        )
 
-    @action(detail=False, methods=["post"])
-    def verify_email(self, request):
-        user_id = request.data.get("user_id")
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({"detail": "Пользователь не найден"}, status=404)
-        if user.email_verified:
-            return Response({"message": "Email уже подтверждён"})
-        user.email_verified = True
-        user.save(update_fields=["email_verified"])
-        return Response({"message": "Email подтверждён"})
 
     @action(detail=False, methods=["post"])
     def reset_password(self, request):
@@ -69,7 +56,7 @@ class AuthViewSet(viewsets.ViewSet):
         # токены пока опустим
         try:
             user = User.objects.get(email=email)
-            link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/reset-password/{user.id}"
+            link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/reset-password/{user.id}"
             send_mail(
                 "Восстановление пароля",
                 f"Установите новый пароль: {link}",
@@ -90,6 +77,7 @@ class AuthViewSet(viewsets.ViewSet):
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({"detail": "Пользователь не найден"}, status=404)
+
         user.set_password(ser.validated_data["new_password"])
         user.password_changed_at = timezone.now()
         user.save(update_fields=["password", "password_changed_at"])

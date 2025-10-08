@@ -19,8 +19,8 @@ class CandidateMatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = CandidateMatch
         fields = ["id", "vacancy", "officer", "officer_name", "rank_name",
-                  "match_score", "gaps_json", "created_at"]
-        read_only_fields = ["match_score", "gaps_json", "created_at"]
+                  "match_score", "gaps", "created_at"]
+        read_only_fields = ["match_score", "gaps", "created_at"]
 
     def get_officer_name(self, obj):
         return obj.officer.full_name or obj.officer.user.email

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru">
+  <body style="font-family:system-ui,Arial,sans-serif">
+    <h2>Подтвердите ваш e-mail</h2>
+    <p>Здравствуйте, {{ user.get_username|default:user.email }}!</p>
+    <p>Для завершения регистрации перейдите по ссылке:</p>
+    <p>
+      <a href="{{ link }}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">
+        Подтвердить e-mail
+      </a>
+    </p>
+    <p>Если вы не регистрировались — просто проигнорируйте это письмо.</p>
+  </body>
+</html>
