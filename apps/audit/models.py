@@ -1,5 +1,6 @@
 # Аудит
 from django.db import models
+from django.core.serializers.json import DjangoJSONEncoder
 
 
 class AuditLog(models.Model):
@@ -16,7 +17,7 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=20, choices=ActionType.choices)
     object_type = models.CharField(max_length=100, db_index=True)
     object_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
-    diff_json = models.JSONField(null=True, blank=True)
+    diff_json = models.JSONField(null=True, blank=True, encoder=DjangoJSONEncoder)
     ip = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

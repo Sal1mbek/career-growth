@@ -186,6 +186,7 @@ AUDIT_IGNORED_PATHS = (
     "/api/schema", "/api/docs",
     "/admin/js/", "/admin/css/", "/admin/img/",
 )
+AUDIT_SKIP_DURING_MIGRATIONS = True
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
