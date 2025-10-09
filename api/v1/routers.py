@@ -1,7 +1,8 @@
 from rest_framework.routers import DefaultRouter
 from apps.users.views import (
     UserViewSet, OfficerProfileViewSet, CommanderProfileViewSet,
-    HRProfileViewSet, CommanderAssignmentViewSet
+    HRProfileViewSet, CommanderAssignmentViewSet,
+    EducationEntryViewSet, ServiceRecordViewSet, OfficerLanguageViewSet
 )
 from apps.users.views_auth import CustomTokenObtainPairView
 from apps.users.views import AuthViewSet
@@ -38,6 +39,10 @@ router.register(r'officers', OfficerProfileViewSet, basename='officer')
 router.register(r'commanders', CommanderProfileViewSet, basename='commander')
 router.register(r'hr', HRProfileViewSet, basename='hr')
 router.register(r'assignments', CommanderAssignmentViewSet, basename='assignment')
+router.register(r'users/officer-profiles', OfficerProfileViewSet, basename='officer-profiles')
+router.register(r'users/educations', EducationEntryViewSet, basename='educations')
+router.register(r'users/service-records', ServiceRecordViewSet, basename='service-records')
+router.register(r'users/languages', OfficerLanguageViewSet, basename='languages')
 
 # Directory (справочники)
 router.register(r'directory/ranks', RankViewSet, basename='dir-ranks')

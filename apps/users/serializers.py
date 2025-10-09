@@ -3,7 +3,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
+from .models import (
+    OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment,
+    EducationEntry, ServiceRecord, OfficerLanguage
+)
 
 User = get_user_model()
 
@@ -43,25 +46,63 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class EducationEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EducationEntry
+        fields = ['id', 'type', 'year', 'institution', 'specialty', 'note']
+
+
+class ServiceRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceRecord
+        fields = ['id', 'year', 'start_date', 'end_date', 'title', 'unit_name', 'description']
+
+
+class OfficerLanguageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfficerLanguage
+        fields = ['id', 'language', 'level']
+
+
 class OfficerProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     rank_name = serializers.CharField(source="rank.name", read_only=True)
     unit_name = serializers.CharField(source="unit.name", read_only=True)
     position_title = serializers.CharField(source="current_position.title", read_only=True)
 
+    educations = EducationEntrySerializer(many=True, read_only=True)
+    service_records = ServiceRecordSerializer(many=True, read_only=True)
+    languages = OfficerLanguageSerializer(many=True, read_only=True)
+
+    photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = OfficerProfile
         fields = [
             "id", "user", "full_name", "birth_date", "phone",
+            "photo", "photo_url", "iin", "birth_place", "nationality", "marital_status",
+            "combat_participation", "combat_notes",
             "rank", "rank_name", "unit", "unit_name",
-            "current_position", "position_title", "service_start_date"
+            "current_position", "position_title", "service_start_date",
+            "educations", "service_records", "languages",
         ]
+        extra_kwargs = {"photo": {"write_only": True, "required": False}}
+
+    def get_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.photo and request:
+            return request.build_absolute_uri(obj.photo.url)
+        return None
 
 
 class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OfficerProfile
-        fields = ["full_name", "birth_date", "phone"]
+        fields = [
+            "full_name", "birth_date", "phone",
+            "photo", "iin", "birth_place", "nationality", "marital_status",
+            "combat_participation", "combat_notes",
+        ]
 
 
 class CommanderProfileSerializer(serializers.ModelSerializer):

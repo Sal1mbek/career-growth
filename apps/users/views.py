@@ -8,18 +8,21 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 
 from core.permissions import (
     IsAdminOrRoot, IsOwnUser, IsOwnProfile, IsCommander, CanViewSubordinates, IsOfficer, IsStaffish, IsHR,
     ReadOnlyOrStaffish
 )
-from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
+from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, \
+    EducationEntry, ServiceRecord, OfficerLanguage
 from .serializers import (
     UserRegistrationSerializer, UserSerializer,
     OfficerProfileSerializer, OfficerProfileUpdateSerializer,
     CommanderProfileSerializer, HRProfileSerializer,
     CommanderAssignmentSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
-    PasswordChangeSerializer
+    PasswordChangeSerializer,
+    EducationEntrySerializer, ServiceRecordSerializer, OfficerLanguageSerializer
 )
 from .utils import send_verification_email
 
@@ -36,7 +39,6 @@ class AuthViewSet(viewsets.ViewSet):
         ser.is_valid(raise_exception=True)
         user = ser.save()
 
-        link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/verify-email/{user.id}"
         try:
             send_verification_email(user, request)
         except Exception:
@@ -110,13 +112,14 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
     queryset = OfficerProfile.objects.select_related("user", "rank", "unit", "current_position").all()
     serializer_class = OfficerProfileSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_permissions(self):
         # офицер может читать/править только свой профиль
         # командир/HR/admin/root — читать соответственно своим правам
-        if self.action in ("update", "partial_update"):
+        if self.action in ("update", "partial_update", "me_update"):
             return [IsAuthenticated(), IsOwnProfile()]
-        if self.action in ("retrieve",):
+        if self.action in ("retrieve", "me"):
             # доступ офицеру к себе + командиру к подчинённому + staffish
             return [IsAuthenticated()]
         return [IsAuthenticated(), ReadOnlyOrStaffish()]  # ReadOnly из core.permissions если подключишь
@@ -143,7 +146,7 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Профиль офицера не найден"}, status=404)
         return Response(self.get_serializer(obj).data)
 
-    @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated], url_path="me/update")
     def me_update(self, request):
         try:
             obj = OfficerProfile.objects.get(user=request.user)
@@ -152,7 +155,47 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
         ser = OfficerProfileUpdateSerializer(instance=obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(OfficerProfileSerializer(obj).data)
+        return Response(OfficerProfileSerializer(obj, context={'request': request}).data)
+
+
+class _OwnOfficerQueryMixin:
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        if u.role == 'OFFICER':
+            try:
+                me = OfficerProfile.objects.get(user=u)
+            except OfficerProfile.DoesNotExist:
+                return qs.none()
+            return qs.filter(officer=me)
+        # Командир/HR/Admin/Root — полный доступ (или можно ограничивать)
+        return qs
+
+    def perform_create(self, serializer):
+        u = self.request.user
+        if u.role == 'OFFICER':
+            officer = OfficerProfile.objects.get(user=u)
+            serializer.save(officer=officer)
+        else:
+            serializer.save()
+
+
+class EducationEntryViewSet(_OwnOfficerQueryMixin, viewsets.ModelViewSet):
+    queryset = EducationEntry.objects.select_related('officer')
+    serializer_class = EducationEntrySerializer
+    permission_classes = [IsAuthenticated]
+
+
+class ServiceRecordViewSet(_OwnOfficerQueryMixin, viewsets.ModelViewSet):
+    queryset = ServiceRecord.objects.select_related('officer')
+    serializer_class = ServiceRecordSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class OfficerLanguageViewSet(_OwnOfficerQueryMixin, viewsets.ModelViewSet):
+    queryset = OfficerLanguage.objects.select_related('officer')
+    serializer_class = OfficerLanguageSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class CommanderProfileViewSet(viewsets.ReadOnlyModelViewSet):
