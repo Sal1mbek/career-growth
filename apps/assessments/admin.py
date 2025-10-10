@@ -1,5 +1,10 @@
+import json
 from django.contrib import admin
+from django import forms
+from django_json_widget.widgets import JSONEditorWidget
+
 from .models import Assessment, AssessmentItem, CompetencyRating, Rater, Feedback360
+from core.json_payloads import FEEDBACK360_TEMPLATE
 
 
 class AssessmentItemInline(admin.TabularInline):
@@ -33,11 +38,28 @@ admin.site.register(Rater,
                     })
                     )
 
-admin.site.register(Feedback360,
-                    type("Feedback360Admin", (admin.ModelAdmin,), {
-                        "list_display": ("id", "assessment", "rater", "is_anonymous", "created_at"),
-                        "search_fields": ("assessment__officer__user__email", "rater__user__email"),
-                        "list_filter": ("is_anonymous", "created_at"),
-                        "autocomplete_fields": ("assessment", "rater"),  # <—
-                    })
-                    )
+
+class Feedback360Form(forms.ModelForm):
+    class Meta:
+        model = Feedback360
+        fields = "__all__"
+        widgets = {
+            # БЕЗ collapsed=..., только options
+            "payload": JSONEditorWidget(options={"mode": "tree", "modes": ["tree", "code"]}),
+        }
+
+
+class Feedback360Admin(admin.ModelAdmin):
+    form = Feedback360Form
+    list_display = ("id", "assessment", "rater", "is_anonymous", "created_at")
+    search_fields = ("assessment__officer__user__email", "rater__user__email")
+    list_filter = ("is_anonymous", "created_at")
+    autocomplete_fields = ("assessment", "rater")
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial["payload"] = FEEDBACK360_TEMPLATE
+        return initial
+
+
+admin.site.register(Feedback360, Feedback360Admin)
