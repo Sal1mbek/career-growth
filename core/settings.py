@@ -70,7 +70,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'apps.audit.middleware.AuditRequestMiddleware'
+    #'apps.audit.middleware.AuditRequestMiddleware'
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -133,6 +133,15 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+#
+AUDIT_ENABLED = env_bool("AUDIT_ENABLED", "true")
+AUDIT_LOG_HTTP = env_bool("AUDIT_LOG_HTTP", "false")
+AUDIT_IGNORED_PATHS = (
+    "/static/", "/media/", "/favicon.ico",
+    "/api/schema", "/api/docs",
+    "/admin/", "/admin/login", "/admin/js/", "/admin/css/", "/admin/img/",
+)
 
 
 # Password validation

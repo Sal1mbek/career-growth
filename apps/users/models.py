@@ -154,7 +154,6 @@ class OfficerLanguage(models.Model):
         ordering = ['language']
 
 
-
 class CommanderProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='commander_profile')
     unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT)
