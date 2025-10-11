@@ -146,14 +146,17 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Профиль офицера не найден"}, status=404)
         return Response(self.get_serializer(obj).data)
 
-    @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated], url_path="me/update")
+    @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated])
     def me_update(self, request):
         try:
             obj = OfficerProfile.objects.get(user=request.user)
         except OfficerProfile.DoesNotExist:
             return Response({"detail": "Профиль офицера не найден"}, status=404)
+
         ser = OfficerProfileUpdateSerializer(instance=obj, data=request.data, partial=True)
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            print(f"Validation errors: {ser.errors}")  # Для отладки
+            return Response(ser.errors, status=400)
         ser.save()
         return Response(OfficerProfileSerializer(obj, context={'request': request}).data)
 

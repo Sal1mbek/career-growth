@@ -89,9 +89,11 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
         extra_kwargs = {"photo": {"write_only": True, "required": False}}
 
     def get_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.photo and request:
-            return request.build_absolute_uri(obj.photo.url)
+        if obj.photo:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
         return None
 
 

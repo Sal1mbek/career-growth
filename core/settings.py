@@ -94,9 +94,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
+
 # email
 def env_bool(key: str, default="false"):
     return os.getenv(key, default).strip().lower() in ("1", "true", "yes", "on")
+
 
 EMAIL_HOST = os.getenv("EMAIL_HOST", "mail.truemasters.kz")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "465"))
