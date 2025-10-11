@@ -1,22 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, \
-    EducationEntry, ServiceRecord, OfficerLanguage
-
-
-class EducationInline(admin.TabularInline):
-    model = EducationEntry
-    extra = 0
-
-
-class ServiceRecordInline(admin.TabularInline):
-    model = ServiceRecord
-    extra = 0
-
-
-class LanguageInline(admin.TabularInline):
-    model = OfficerLanguage
-    extra = 0
+from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
 
 
 @admin.register(CustomUser)
@@ -43,10 +27,9 @@ class UserAdmin(DjangoUserAdmin):
 
 @admin.register(OfficerProfile)
 class OfficerProfileAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "full_name", "iin", "rank", "unit", "current_position", "service_start_date")
+    list_display = ("id", "user", "full_name", "rank", "unit", "current_position", "service_start_date")
     search_fields = ("user__email", "full_name", "iin")
-    list_filter = ("rank", "unit", "current_position", "marital_status", "combat_participation")
-    inlines = [EducationInline, ServiceRecordInline, LanguageInline]
+    list_filter = ("rank", "unit", "current_position")
 
 
 @admin.register(CommanderProfile)

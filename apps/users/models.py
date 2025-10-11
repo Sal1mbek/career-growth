@@ -72,26 +72,6 @@ class OfficerProfile(models.Model):
     birth_date = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
 
-    photo = models.ImageField(upload_to='officers/photos/', null=True, blank=True)
-    iin = models.CharField(
-        max_length=12, blank=True, null=True, unique=True,
-        validators=[RegexValidator(r'^\d{12}$', message="ИИН должен содержать 12 цифр")]
-    )
-    birth_place = models.CharField(max_length=255, blank=True)
-
-    nationality = models.CharField(max_length=64, blank=True)
-
-    class MaritalStatus(models.TextChoices):
-        SINGLE = 'SINGLE', _('холост/не замужем')
-        MARRIED = 'MARRIED', _('женат/замужем')
-        DIVORCED = 'DIVORCED', _('разведён/разведена')
-        WIDOWED = 'WIDOWED', _('вдова/вдовец')
-
-    marital_status = models.CharField(max_length=16, choices=MaritalStatus.choices, blank=True)
-
-    combat_participation = models.BooleanField(default=False)
-    combat_notes = models.CharField(max_length=255, blank=True)
-
     rank = models.ForeignKey('directory.Rank', on_delete=models.PROTECT, null=True)
     unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT, null=True)
     current_position = models.ForeignKey('directory.Position', on_delete=models.SET_NULL, null=True, blank=True)
@@ -104,54 +84,6 @@ class OfficerProfile(models.Model):
         unit = self.unit.name if self.unit else ""
         parts = [p for p in [name, rank, unit] if p]
         return " / ".join(parts)
-
-
-class EducationEntry(models.Model):
-    """Пункты образования (гражданское / военно-специальное)."""
-    class EducationType(models.TextChoices):
-        CIVIL = 'CIVIL', _('Гражданское')
-        MIL = 'MIL', _('Военно-специальное')
-
-    officer = models.ForeignKey(OfficerProfile, on_delete=models.CASCADE, related_name='educations')
-    type = models.CharField(max_length=8, choices=EducationType.choices)
-    year = models.PositiveIntegerField(validators=[MinValueValidator(1900)])
-    institution = models.CharField(max_length=255)     # школа/вуз/центр
-    specialty = models.CharField(max_length=255, blank=True)
-    note = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ['type', 'year']
-
-
-class ServiceRecord(models.Model):
-    """История службы (таймлайн)."""
-    officer = models.ForeignKey(OfficerProfile, on_delete=models.CASCADE, related_name='service_records')
-    year = models.PositiveIntegerField(validators=[MinValueValidator(1900)], null=True, blank=True)
-    start_date = models.DateField(null=True, blank=True)
-    end_date = models.DateField(null=True, blank=True)
-
-    title = models.CharField(max_length=255)           # должность/роль
-    unit_name = models.CharField(max_length=255, blank=True)
-    description = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ['start_date', 'year', 'id']
-
-
-class OfficerLanguage(models.Model):
-    """Знание языков."""
-    class Level(models.TextChoices):
-        BASIC = 'BASIC', _('со словарём')
-        INTERMEDIATE = 'INTERMEDIATE', _('средний')
-        ADVANCED = 'ADVANCED', _('свободно')
-
-    officer = models.ForeignKey(OfficerProfile, on_delete=models.CASCADE, related_name='languages')
-    language = models.CharField(max_length=64)         # 'русский', 'английский', 'казахский'
-    level = models.CharField(max_length=16, choices=Level.choices, default=Level.BASIC)
-
-    class Meta:
-        unique_together = ('officer', 'language')
-        ordering = ['language']
 
 
 class CommanderProfile(models.Model):
