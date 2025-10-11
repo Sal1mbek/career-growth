@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
+from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
 
 
 @admin.register(CustomUser)
@@ -25,11 +25,37 @@ class UserAdmin(DjangoUserAdmin):
     readonly_fields = ("last_login", "date_joined", "password_changed_at", "last_failed_login", "failed_login_attempts")
 
 
+class LanguageInline(admin.TabularInline):
+    model = OfficerLanguage
+    extra = 1
+    fields = ('language', 'level')
+
+
 @admin.register(OfficerProfile)
 class OfficerProfileAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "full_name", "rank", "unit", "current_position", "service_start_date")
+    list_display = ("id", "user", "full_name", "iin", "rank", "unit", "current_position", "service_start_date", "combat_participation")
     search_fields = ("user__email", "full_name", "iin")
-    list_filter = ("rank", "unit", "current_position")
+    list_filter = ("rank", "unit", "current_position", "marital_status", "combat_participation")
+    inlines = [LanguageInline]
+    readonly_fields = ('user',)
+    fieldsets = (
+        ("Пользователь", {"fields": ("user",)}),
+        ("Основная информация", {
+            "fields": ("full_name", "birth_date", "phone", "iin")
+        }),
+        ("Личные данные", {
+            "fields": ("birth_place", "nationality", "marital_status")
+        }),
+        ("Служба", {
+            "fields": ("rank", "unit", "current_position", "service_start_date")
+        }),
+        ("Боевая подготовка", {
+            "fields": ("combat_participation", "combat_notes")
+        }),
+        ("Фото", {
+            "fields": ("photo",)
+        }),
+    )
 
 
 @admin.register(CommanderProfile)

@@ -8,18 +8,19 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 
 from core.permissions import (
     IsAdminOrRoot, IsOwnUser, IsOwnProfile, IsCommander, CanViewSubordinates, IsOfficer, IsStaffish, IsHR,
     ReadOnlyOrStaffish
 )
-from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
+from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
 from .serializers import (
     UserRegistrationSerializer, UserSerializer,
     OfficerProfileSerializer, OfficerProfileUpdateSerializer,
     CommanderProfileSerializer, HRProfileSerializer,
     CommanderAssignmentSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
-    PasswordChangeSerializer
+    PasswordChangeSerializer, OfficerLanguageSerializer
 )
 from .utils import send_verification_email
 
@@ -110,6 +111,7 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
     queryset = OfficerProfile.objects.select_related("user", "rank", "unit", "current_position").all()
     serializer_class = OfficerProfileSerializer
     permission_classes = [IsAuthenticated]
+    from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 
     def get_permissions(self):
         # офицер может читать/править только свой профиль
@@ -152,7 +154,37 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
         ser = OfficerProfileUpdateSerializer(instance=obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(OfficerProfileSerializer(obj).data)
+        return Response(OfficerProfileSerializer(obj, context={'request': request}).data)
+
+
+# ---- Языки ----
+class OfficerLanguageViewSet(viewsets.ModelViewSet):
+    """
+    OFFICER может управлять только своими языками.
+    COMMANDER/HR/ADMIN/ROOT — без ограничений (при необходимости можно ужесточить).
+    """
+    queryset = OfficerLanguage.objects.select_related('officer', 'officer__user')
+    serializer_class = OfficerLanguageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        if u.role == 'OFFICER':
+            try:
+                me = OfficerProfile.objects.get(user=u)
+            except OfficerProfile.DoesNotExist:
+                return qs.none()
+            return qs.filter(officer=me)
+        return qs
+
+    def perform_create(self, serializer):
+        u = self.request.user
+        if u.role == 'OFFICER':
+            officer = OfficerProfile.objects.get(user=u)
+            serializer.save(officer=officer)
+        else:
+            serializer.save()
 
 
 class CommanderProfileViewSet(viewsets.ReadOnlyModelViewSet):

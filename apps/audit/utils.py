@@ -4,6 +4,7 @@ from django.db import connection
 from django.db.utils import ProgrammingError, OperationalError
 from .models import AuditLog
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models.fields.files import ImageFieldFile, FileField
 import json
 
 
@@ -15,6 +16,21 @@ def _contenttypes_ready() -> bool:
         return False
 
 
+class AuditJSONEncoder(DjangoJSONEncoder):
+    """Расширенный JSON энкодер для сериализации Django специальных типов"""
+
+    def default(self, o):
+        # Обработка ImageFieldFile и FileField
+        if isinstance(o, (ImageFieldFile, FileField)):
+            return str(o) if o else None
+
+        # Обработка объектов модели с pk атрибутом
+        if hasattr(o, '__str__') and hasattr(o, 'pk'):
+            return str(o)
+
+        return super().default(o)
+
+
 def _jsonable(payload):
     """Гарантируем, что payload сериализуем (дату/время и т.п. делаем строкой)."""
     if payload is None:
@@ -24,7 +40,11 @@ def _jsonable(payload):
         return payload
     except TypeError:
         # прогоняем через dumps/loads с DjangoJSONEncoder
-        return json.loads(json.dumps(payload, cls=DjangoJSONEncoder))
+        try:
+            return json.loads(json.dumps(payload, cls=AuditJSONEncoder))
+        except Exception:
+            # Fallback: если всё ещё не сериализуется, возвращаем None
+            return None
 
 
 def log_event(*, actor, action: str, obj=None, object_type: str = None, object_id=None,

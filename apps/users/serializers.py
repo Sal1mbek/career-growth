@@ -1,10 +1,10 @@
+from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from rest_framework import serializers
 
 from .models import (
-    OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment
+    OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
 )
 
 User = get_user_model()
@@ -45,26 +45,48 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class OfficerLanguageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfficerLanguage
+        fields = ['id', 'language', 'level']
+
+
 class OfficerProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     rank_name = serializers.CharField(source="rank.name", read_only=True)
     unit_name = serializers.CharField(source="unit.name", read_only=True)
     position_title = serializers.CharField(source="current_position.title", read_only=True)
 
+    languages = OfficerLanguageSerializer(many=True, read_only=True)
+    photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = OfficerProfile
         fields = [
             "id", "user", "full_name", "birth_date", "phone",
+            "photo", "photo_url", "iin", "birth_place", "nationality",
+            "marital_status", "combat_participation", "combat_notes",
             "rank", "rank_name", "unit", "unit_name",
-            "current_position", "position_title", "service_start_date"
+            "current_position", "position_title", "service_start_date",
+            "languages",
         ]
+        extra_kwargs = {"photo": {"write_only": True, "required": False}}
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get("request")
+            return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+        return None
 
 
 class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OfficerProfile
         fields = [
-            "full_name", "birth_date", "phone"
+            "full_name", "birth_date", "phone",
+            "photo", "iin", "birth_place", "nationality",
+            "marital_status", "combat_participation", "combat_notes",
+            "service_start_date",
         ]
 
 

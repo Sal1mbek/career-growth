@@ -72,6 +72,25 @@ class OfficerProfile(models.Model):
     birth_date = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
 
+    # --- НОВЫЕ ПОЛЯ ---
+    photo = models.ImageField(upload_to='officers/photos/', null=True, blank=True)
+    iin = models.CharField(
+        max_length=12, blank=True, null=True, unique=True,
+        validators=[RegexValidator(r'^\d{12}$', message="ИИН должен содержать 12 цифр")]
+    )
+    birth_place = models.CharField(max_length=255, blank=True)
+    nationality = models.CharField(max_length=64, blank=True)
+
+    class MaritalStatus(models.TextChoices):
+        SINGLE = 'SINGLE', _('холост/не замужем')
+        MARRIED = 'MARRIED', _('женат/замужем')
+        DIVORCED = 'DIVORCED', _('разведён/разведена')
+        WIDOWED = 'WIDOWED', _('вдова/вдовец')
+
+    marital_status = models.CharField(max_length=16, choices=MaritalStatus.choices, blank=True)
+    combat_participation = models.BooleanField(default=False)
+    combat_notes = models.CharField(max_length=255, blank=True)
+
     rank = models.ForeignKey('directory.Rank', on_delete=models.PROTECT, null=True)
     unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT, null=True)
     current_position = models.ForeignKey('directory.Position', on_delete=models.SET_NULL, null=True, blank=True)
@@ -84,6 +103,26 @@ class OfficerProfile(models.Model):
         unit = self.unit.name if self.unit else ""
         parts = [p for p in [name, rank, unit] if p]
         return " / ".join(parts)
+
+
+class OfficerLanguage(models.Model):
+    """Знание языков (мультирядовость)."""
+    class Level(models.TextChoices):
+        BASIC = 'BASIC', _('со словарём')
+        INTERMEDIATE = 'INTERMEDIATE', _('средний')
+        ADVANCED = 'ADVANCED', _('свободно')
+
+    officer = models.ForeignKey(OfficerProfile, on_delete=models.CASCADE,
+                                related_name='languages')
+    language = models.CharField(max_length=64)     # 'русский', 'английский', 'казахский'
+    level = models.CharField(max_length=16, choices=Level.choices, default=Level.BASIC)
+
+    class Meta:
+        unique_together = ('officer', 'language')
+        ordering = ['language']
+
+    def __str__(self):
+        return f"{self.officer_id} - {self.language} ({self.level})"
 
 
 class CommanderProfile(models.Model):
