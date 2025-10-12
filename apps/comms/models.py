@@ -54,8 +54,9 @@ class TicketMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        author = self.author.email if self.author else "Система"
-        return f"{author}: {self.text[:50]}..."
+        author = getattr(self.author, "email", "Система")
+        preview = (self.body or "")[:50]
+        return f"{author}: {preview}..."
 
     class Meta:
         ordering = ['created_at']
