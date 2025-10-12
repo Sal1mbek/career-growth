@@ -88,7 +88,7 @@ def build_matches_for_vacancy(vacancy: Vacancy) -> list[CandidateMatch]:
         score, gaps = score_officer_for_vacancy(off, vacancy)
         obj, _ = CandidateMatch.objects.update_or_create(
             vacancy=vacancy, officer=off,
-            defaults={"match_score": score, "gaps_json": gaps}
+            defaults={"match_score": score, "gaps": gaps}
         )
         created.append(obj)
     return created

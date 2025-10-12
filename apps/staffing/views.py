@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django_fsm import TransitionNotAllowed
 
 from core.permissions import IsAdminOrRoot, IsCommanderOrHR
 from core.responses import APIResponse
@@ -23,8 +24,11 @@ class VacancyViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated & (IsCommanderOrHR | IsAdminOrRoot)])
     def generate_matches(self, request, pk=None):
         vacancy = self.get_object()
-        objs = build_matches_for_vacancy(vacancy)
-        data = CandidateMatchSerializer(objs, many=True).data
+        try:
+            objs = build_matches_for_vacancy(vacancy)
+        except Exception as e:
+            return APIResponse.error(f"Не удалось пересчитать кандидатов: {e}", status=400)
+        data = CandidateMatchSerializer(objs, many=True, context={"request": request}).data
         return APIResponse.success(data, message="Кандидаты пересчитаны")
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
@@ -57,34 +61,64 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def recommend(self, request, pk=None):
         obj = self.get_object()
-        obj.recommend(request.user);
-        obj.save()
+        try:
+            obj.recommend(request.user)
+            obj.save()
+        except TransitionNotAllowed:
+            return Response(
+                {"detail": f"Нельзя перевести из '{obj.state}' в 'recommended'"},
+                status=400
+            )
         return APIResponse.success(AssignmentSerializer(obj).data, "recommended")
 
     @action(detail=True, methods=["post"])
     def send_to_hr(self, request, pk=None):
         obj = self.get_object()
-        obj.send_to_hr(request.user);
-        obj.save()
+        try:
+            obj.send_to_hr(request.user)
+            obj.save()
+        except TransitionNotAllowed:
+            return Response(
+                {"detail": f"Нельзя перевести из '{obj.state}' в 'hr_review'"},
+                status=400
+            )
         return APIResponse.success(AssignmentSerializer(obj).data, "hr_review")
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         obj = self.get_object()
-        obj.approve(request.user);
-        obj.save()
+        try:
+            obj.approve(request.user)
+            obj.save()
+        except TransitionNotAllowed:
+            return Response(
+                {"detail": f"Нельзя перевести из '{obj.state}' в 'approved'"},
+                status=400
+            )
         return APIResponse.success(AssignmentSerializer(obj).data, "approved")
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         obj = self.get_object()
-        obj.reject(request.user);
-        obj.save()
+        try:
+            obj.reject(request.user)
+            obj.save()
+        except TransitionNotAllowed:
+            return Response(
+                {"detail": f"Нельзя перевести из '{obj.state}' в 'rejected'"},
+                status=400
+            )
         return APIResponse.success(AssignmentSerializer(obj).data, "rejected")
 
     @action(detail=True, methods=["post"])
     def assign(self, request, pk=None):
         obj = self.get_object()
-        obj.assign(request.user);
-        obj.save()
+        try:
+            obj.assign(request.user)
+            obj.save()
+        except TransitionNotAllowed:
+            return Response(
+                {"detail": f"Нельзя перевести из '{obj.state}' в 'assigned'"},
+                status=400
+            )
         return APIResponse.success(AssignmentSerializer(obj).data, "assigned")
