@@ -32,12 +32,6 @@ from apps.audit.views import AuditLogViewSet
 
 router = DefaultRouter()
 
-# Users
-router.register(r'users', UserViewSet, basename='user')
-router.register(r'officers', OfficerProfileViewSet, basename='officer')
-router.register(r'commanders', CommanderProfileViewSet, basename='commander')
-router.register(r'hr', HRProfileViewSet, basename='hr')
-router.register(r'assignments', CommanderAssignmentViewSet, basename='assignment')
 
 # Directory (справочники)
 router.register(r'directory/ranks', RankViewSet, basename='dir-ranks')
@@ -55,6 +49,13 @@ router.register(r'officers/documents', OfficerDocumentViewSet, basename='officer
 router.register(r'officers/enrollments', CourseEnrollmentViewSet, basename='officer-enrollments')
 router.register(r'officers/certificates', CertificateViewSet, basename='officer-certificates')
 router.register(r'officers/languages', OfficerLanguageViewSet, basename='officer-languages')
+
+# Users
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'officers', OfficerProfileViewSet, basename='officer')
+router.register(r'commanders', CommanderProfileViewSet, basename='commander')
+router.register(r'hr', HRProfileViewSet, basename='hr')
+router.register(r'assignments', CommanderAssignmentViewSet, basename='assignment')
 
 # Assessment (Аттестации и оценки)
 router.register(r'assessments', AssessmentViewSet, basename='assessments')

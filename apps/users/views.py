@@ -3,8 +3,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 
-from rest_framework import viewsets, mixins, status
+from rest_framework import viewsets, mixins, status, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -111,7 +112,7 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
     queryset = OfficerProfile.objects.select_related("user", "rank", "unit", "current_position").all()
     serializer_class = OfficerProfileSerializer
     permission_classes = [IsAuthenticated]
-    from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_permissions(self):
         # офицер может читать/править только свой профиль
@@ -166,11 +167,15 @@ class OfficerLanguageViewSet(viewsets.ModelViewSet):
     queryset = OfficerLanguage.objects.select_related('officer', 'officer__user')
     serializer_class = OfficerLanguageSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields = ["officer", "language"]
+    search_fields = ["language"]
+    ordering = ["language"]
 
     def get_queryset(self):
         qs = super().get_queryset()
         u = self.request.user
-        if u.role == 'OFFICER':
+        if getattr(u, 'role', None) == 'OFFICER':
             try:
                 me = OfficerProfile.objects.get(user=u)
             except OfficerProfile.DoesNotExist:
@@ -180,7 +185,7 @@ class OfficerLanguageViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         u = self.request.user
-        if u.role == 'OFFICER':
+        if getattr(u, 'role', None) == 'OFFICER':
             officer = OfficerProfile.objects.get(user=u)
             serializer.save(officer=officer)
         else:
