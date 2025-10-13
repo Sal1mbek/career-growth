@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from datetime import date
 
 from .models import (
     OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage, CommanderLanguage
@@ -60,6 +61,9 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
     languages = OfficerLanguageSerializer(many=True, read_only=True)
     photo_url = serializers.SerializerMethodField()
 
+    age = serializers.SerializerMethodField()
+    service_years = serializers.SerializerMethodField()
+
     class Meta:
         model = OfficerProfile
         fields = [
@@ -68,7 +72,7 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
             "marital_status", "combat_participation", "combat_notes",
             "rank", "rank_name", "unit", "unit_name",
             "current_position", "position_title", "service_start_date",
-            "languages",
+            "languages", "age", "service_years",
         ]
         extra_kwargs = {"photo": {"write_only": True, "required": False}}
 
@@ -77,6 +81,22 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
         return None
+
+    def get_age(self, obj):
+        if not obj.birth_date:
+            return None
+        today = date.today()
+        return today.year - obj.birth_date.year - (
+                (today.month, today.day) < (obj.birth_date.month, obj.birth_date.day)
+        )
+
+    def get_service_years(self, obj):
+        if not obj.service_start_date:
+            return None
+        today = date.today()
+        return today.year - obj.service_start_date.year - (
+                (today.month, today.day) < (obj.service_start_date.month, obj.service_start_date.day)
+        )
 
 
 class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
@@ -103,6 +123,8 @@ class CommanderProfileSerializer(serializers.ModelSerializer):
     position_title = serializers.CharField(source="current_position.title", read_only=True)
     languages = CommanderLanguageSerializer(many=True, read_only=True)
     photo_url = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
+    service_years = serializers.SerializerMethodField()
 
     class Meta:
         model = CommanderProfile
@@ -115,7 +137,7 @@ class CommanderProfileSerializer(serializers.ModelSerializer):
             # Уникальные поля командира
             "command_title", "command_scope", "appointed_at", "relieved_at",
             "staff_position", "subordinates_expected",
-            "languages",
+            "languages", "age", "service_years",
         ]
         extra_kwargs = {"photo": {"write_only": True, "required": False}}
 
@@ -124,6 +146,22 @@ class CommanderProfileSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
         return None
+
+    def get_age(self, obj):
+        if not obj.birth_date:
+            return None
+        today = date.today()
+        return today.year - obj.birth_date.year - (
+                (today.month, today.day) < (obj.birth_date.month, obj.birth_date.day)
+        )
+
+    def get_service_years(self, obj):
+        if not obj.service_start_date:
+            return None
+        today = date.today()
+        return today.year - obj.service_start_date.year - (
+                (today.month, today.day) < (obj.service_start_date.month, obj.service_start_date.day)
+        )
 
 
 class CommanderProfileUpdateSerializer(serializers.ModelSerializer):

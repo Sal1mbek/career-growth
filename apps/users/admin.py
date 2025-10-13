@@ -171,3 +171,8 @@ class CommanderAssignmentAdmin(admin.ModelAdmin):
     list_display = ("id", "commander", "officer", "since", "until")
     search_fields = ("commander__user__email", "officer__user__email")
     list_filter = ("since", "until")
+    readonly_fields = ("since",)
+    fieldsets = (
+        (None, {"fields": ("commander", "officer", "since")}),
+        ("Период", {"fields": ("until",)}),
+    )

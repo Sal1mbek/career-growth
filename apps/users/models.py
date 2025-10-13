@@ -190,3 +190,7 @@ class CommanderAssignment(models.Model):
 
     class Meta:
         unique_together = ('commander', 'officer', 'since')
+        indexes = [
+            models.Index(fields=["commander", "officer"]),
+            models.Index(fields=["since", "until"]),
+        ]
