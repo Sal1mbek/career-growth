@@ -15,13 +15,13 @@ from core.permissions import (
     IsAdminOrRoot, IsOwnUser, IsOwnProfile, IsCommander, CanViewSubordinates, IsOfficer, IsStaffish, IsHR,
     ReadOnlyOrStaffish
 )
-from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
+from .models import OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage, CommanderLanguage
 from .serializers import (
     UserRegistrationSerializer, UserSerializer,
     OfficerProfileSerializer, OfficerProfileUpdateSerializer,
     CommanderProfileSerializer, HRProfileSerializer,
     CommanderAssignmentSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
-    PasswordChangeSerializer, OfficerLanguageSerializer
+    PasswordChangeSerializer, OfficerLanguageSerializer, CommanderProfileUpdateSerializer, CommanderLanguageSerializer
 )
 from .utils import send_verification_email
 
@@ -192,10 +192,67 @@ class OfficerLanguageViewSet(viewsets.ModelViewSet):
             serializer.save()
 
 
-class CommanderProfileViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = CommanderProfile.objects.select_related("user", "unit").all()
+class CommanderProfileViewSet(viewsets.ModelViewSet):
+    queryset = CommanderProfile.objects.select_related("user", "rank", "unit", "current_position").all()
     serializer_class = CommanderProfileSerializer
     permission_classes = [IsAuthenticated, IsCommander | IsAdminOrRoot]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+    def get_permissions(self):
+        if self.action in ("update", "partial_update"):
+            return [IsAuthenticated(), IsOwnProfile() | IsAdminOrRoot()]
+        if self.action in ("retrieve",):
+            return [IsAuthenticated(), IsCommander | IsAdminOrRoot | IsHR]
+        return [IsAuthenticated(), ReadOnlyOrStaffish()]
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
+    def me(self, request):
+        try:
+            obj = CommanderProfile.objects.get(user=request.user)
+        except CommanderProfile.DoesNotExist:
+            return Response({"detail": "Профиль командира не найден"}, status=404)
+        return Response(self.get_serializer(obj, context={'request': request}).data)
+
+    @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
+    def me_update(self, request):
+        try:
+            obj = CommanderProfile.objects.get(user=request.user)
+        except CommanderProfile.DoesNotExist:
+            return Response({"detail": "Профиль командира не найден"}, status=404)
+        ser = CommanderProfileUpdateSerializer(instance=obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(CommanderProfileSerializer(obj, context={'request': request}).data)
+
+
+class CommanderLanguageViewSet(viewsets.ModelViewSet):
+    queryset = CommanderLanguage.objects.select_related('commander', 'commander__user')
+    serializer_class = CommanderLanguageSerializer
+    permission_classes = [IsAuthenticated, IsCommander | IsAdminOrRoot]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields = ["commander", "language"]
+    search_fields = ["language"]
+    ordering = ["language"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        # Командир — видит и правит только свои языки
+        if getattr(u, 'role', None) == 'COMMANDER':
+            try:
+                me = CommanderProfile.objects.get(user=u)
+            except CommanderProfile.DoesNotExist:
+                return qs.none()
+            return qs.filter(commander=me)
+        return qs
+
+    def perform_create(self, serializer):
+        u = self.request.user
+        if getattr(u, 'role', None) == 'COMMANDER':
+            commander = CommanderProfile.objects.get(user=u)
+            serializer.save(commander=commander)
+        else:
+            serializer.save()
 
 
 class HRProfileViewSet(viewsets.ReadOnlyModelViewSet):

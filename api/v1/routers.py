@@ -1,7 +1,7 @@
 from rest_framework.routers import DefaultRouter
 from apps.users.views import (
     UserViewSet, OfficerProfileViewSet, CommanderProfileViewSet,
-    HRProfileViewSet, CommanderAssignmentViewSet, OfficerLanguageViewSet
+    HRProfileViewSet, CommanderAssignmentViewSet, OfficerLanguageViewSet, CommanderLanguageViewSet
 )
 from apps.users.views_auth import CustomTokenObtainPairView
 from apps.users.views import AuthViewSet
@@ -53,6 +53,7 @@ router.register(r'officers/languages', OfficerLanguageViewSet, basename='officer
 # Users
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'officers', OfficerProfileViewSet, basename='officer')
+router.register(r'commander/languages', CommanderLanguageViewSet, basename='commander-languages')
 router.register(r'commanders', CommanderProfileViewSet, basename='commander')
 router.register(r'hr', HRProfileViewSet, basename='hr')
 router.register(r'assignments', CommanderAssignmentViewSet, basename='assignment')

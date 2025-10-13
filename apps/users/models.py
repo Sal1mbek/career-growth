@@ -64,16 +64,16 @@ class CustomUser(AbstractUser):
     objects = CustomUserManager()
 
 
-class OfficerProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='officer_profile')
+# --------- БАЗОВЫЙ Профиль (общие поля для офицера и командира) ---------
+class BasePersonProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     # опционально — если хотим переписать ФИО; иначе берём из user.{first,last}_name
     full_name = models.CharField(max_length=255, blank=True)
     birth_date = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
 
-    # --- НОВЫЕ ПОЛЯ ---
-    photo = models.ImageField(upload_to='officers/photos/', null=True, blank=True)
+    photo = models.ImageField(upload_to='profiles/photos/', null=True, blank=True)
     iin = models.CharField(
         max_length=12, blank=True, null=True, unique=True,
         validators=[RegexValidator(r'^\d{12}$', message="ИИН должен содержать 12 цифр")]
@@ -95,14 +95,22 @@ class OfficerProfile(models.Model):
     unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT, null=True)
     current_position = models.ForeignKey('directory.Position', on_delete=models.SET_NULL, null=True, blank=True)
 
-    service_start_date = models.DateField()
+    service_start_date = models.DateField(null=True, blank=True)
 
-    def __str__(self):
-        name = self.full_name or self.user.email
+    class Meta:
+        abstract = True
+
+    def _short(self):
+        name = self.full_name or getattr(self.user, "email", "")
         rank = self.rank.name if self.rank else ""
         unit = self.unit.name if self.unit else ""
         parts = [p for p in [name, rank, unit] if p]
         return " / ".join(parts)
+
+
+class OfficerProfile(BasePersonProfile):
+    def __str__(self):
+        return self._short()
 
 
 class OfficerLanguage(models.Model):
@@ -125,12 +133,45 @@ class OfficerLanguage(models.Model):
         return f"{self.officer_id} - {self.language} ({self.level})"
 
 
-class CommanderProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='commander_profile')
-    unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT)
+class CommanderProfile(BasePersonProfile):
+    class CommandScope(models.TextChoices):
+        PLATOON = 'PLATOON', _('взвод')
+        COMPANY = 'COMPANY', _('рота')
+        BATTALION = 'BATTALION', _('батальон')
+        REGIMENT = 'REGIMENT', _('полк')
+        BRIGADE = 'BRIGADE', _('бригада')
+        DIVISION = 'DIVISION', _('дивизия')
+        OTHER = 'OTHER', _('другое')
+
+    # Уникальные поля командира
+    command_title = models.CharField(max_length=128, blank=True, help_text=_("Должность по командованию"))
+    command_scope = models.CharField(max_length=16, choices=CommandScope.choices, blank=True)
+    appointed_at = models.DateField(null=True, blank=True, help_text=_("Дата назначения командиром"))
+    relieved_at = models.DateField(null=True, blank=True, help_text=_("Дата освобождения от должности"))
+    staff_position = models.BooleanField(default=False, help_text=_("Штабная должность"))
+    subordinates_expected = models.PositiveIntegerField(default=0, help_text=_("Плановая численность подчинённых"))
 
     def __str__(self):
-        return f"{self.user.email} / {self.unit.name if self.unit else ''}"
+        return self._short()
+
+
+class CommanderLanguage(models.Model):
+    """Знание языков (мультирядовость) для командира."""
+    class Level(models.TextChoices):
+        BASIC = 'BASIC', _('со словарём')
+        INTERMEDIATE = 'INTERMEDIATE', _('средний')
+        ADVANCED = 'ADVANCED', _('свободно')
+
+    commander = models.ForeignKey(CommanderProfile, on_delete=models.CASCADE, related_name='languages')
+    language = models.CharField(max_length=64)
+    level = models.CharField(max_length=16, choices=Level.choices, default=Level.BASIC)
+
+    class Meta:
+        unique_together = ('commander', 'language')
+        ordering = ['language']
+
+    def __str__(self):
+        return f"{self.commander_id} - {self.language} ({self.level})"
 
 
 class HRProfile(models.Model):

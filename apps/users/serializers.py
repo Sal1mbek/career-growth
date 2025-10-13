@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import (
-    OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
+    OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage, CommanderLanguage
 )
 
 User = get_user_model()
@@ -90,13 +90,53 @@ class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
         ]
 
 
+class CommanderLanguageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommanderLanguage
+        fields = ['id', 'language', 'level']
+
+
 class CommanderProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    rank_name = serializers.CharField(source="rank.name", read_only=True)
     unit_name = serializers.CharField(source="unit.name", read_only=True)
+    position_title = serializers.CharField(source="current_position.title", read_only=True)
+    languages = CommanderLanguageSerializer(many=True, read_only=True)
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = CommanderProfile
-        fields = ["id", "user", "unit", "unit_name"]
+        fields = [
+            "id", "user", "full_name", "birth_date", "phone",
+            "photo", "photo_url", "iin", "birth_place", "nationality",
+            "marital_status", "combat_participation", "combat_notes",
+            "rank", "rank_name", "unit", "unit_name",
+            "current_position", "position_title", "service_start_date",
+            # Уникальные поля командира
+            "command_title", "command_scope", "appointed_at", "relieved_at",
+            "staff_position", "subordinates_expected",
+            "languages",
+        ]
+        extra_kwargs = {"photo": {"write_only": True, "required": False}}
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get("request")
+            return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+        return None
+
+
+class CommanderProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommanderProfile
+        fields = [
+            "full_name", "birth_date", "phone",
+            "photo", "iin", "birth_place", "nationality",
+            "marital_status", "combat_participation", "combat_notes",
+            "service_start_date",
+            "command_title", "command_scope", "appointed_at", "relieved_at",
+            "staff_position", "subordinates_expected",
+        ]
 
 
 class HRProfileSerializer(serializers.ModelSerializer):

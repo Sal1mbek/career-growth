@@ -1,6 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage
+from django import forms
+from django.contrib.admin.sites import NotRegistered
+from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from .models import CustomUser, OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage, \
+    CommanderLanguage
 
 
 @admin.register(CustomUser)
@@ -25,7 +30,52 @@ class UserAdmin(DjangoUserAdmin):
     readonly_fields = ("last_login", "date_joined", "password_changed_at", "last_failed_login", "failed_login_attempts")
 
 
-class LanguageInline(admin.TabularInline):
+User = get_user_model()
+
+
+class OfficerProfileAdminForm(forms.ModelForm):
+    class Meta:
+        model = OfficerProfile
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # пользователи с ролью OFFICER без созданного officerprofile
+        qs = User.objects.filter(role=getattr(User.UserRole, "OFFICER", "OFFICER"))
+        qs = qs.filter(officerprofile__isnull=True)
+        self.fields["user"].queryset = qs
+
+    def clean_user(self):
+        u = self.cleaned_data["user"]
+        if getattr(u, "role", None) != getattr(User.UserRole, "OFFICER", "OFFICER"):
+            raise ValidationError("У выбранного пользователя роль должна быть OFFICER.")
+        if OfficerProfile.objects.filter(user=u).exists():
+            raise ValidationError("Для этого пользователя профиль офицера уже существует.")
+        return u
+
+
+class CommanderProfileAdminForm(forms.ModelForm):
+    class Meta:
+        model = CommanderProfile
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # пользователи с ролью COMMANDER без созданного commanderprofile
+        qs = User.objects.filter(role=getattr(User.UserRole, "COMMANDER", "COMMANDER"))
+        qs = qs.filter(commanderprofile__isnull=True)
+        self.fields["user"].queryset = qs
+
+    def clean_user(self):
+        u = self.cleaned_data["user"]
+        if getattr(u, "role", None) != getattr(User.UserRole, "COMMANDER", "COMMANDER"):
+            raise ValidationError("У выбранного пользователя роль должна быть COMMANDER.")
+        if CommanderProfile.objects.filter(user=u).exists():
+            raise ValidationError("Для этого пользователя профиль командира уже существует.")
+        return u
+
+
+class OfficerLanguageInline(admin.TabularInline):
     model = OfficerLanguage
     extra = 1
     fields = ('language', 'level')
@@ -36,8 +86,7 @@ class OfficerProfileAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "full_name", "iin", "rank", "unit", "current_position", "service_start_date", "combat_participation")
     search_fields = ("user__email", "full_name", "iin")
     list_filter = ("rank", "unit", "current_position", "marital_status", "combat_participation")
-    inlines = [LanguageInline]
-    readonly_fields = ('user',)
+    inlines = [OfficerLanguageInline]
     fieldsets = (
         ("Пользователь", {"fields": ("user",)}),
         ("Основная информация", {
@@ -57,11 +106,58 @@ class OfficerProfileAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_readonly_fields(self, request, obj=None):
+        # при добавлении (obj is None) — user редактируемый; при изменении — только для чтения
+        return ('user',) if obj else ()
+
+
+class CommanderLanguageInline(admin.TabularInline):
+    model = CommanderLanguage
+    extra = 1
+    fields = ('language', 'level')
+
 
 @admin.register(CommanderProfile)
 class CommanderProfileAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "unit")
-    search_fields = ("user__email",)
+    list_display = (
+        "id", "user", "full_name", "iin", "rank", "unit", "current_position",
+        "service_start_date", "command_title", "command_scope",
+        "appointed_at", "relieved_at", "staff_position", "subordinates_expected"
+    )
+    search_fields = ("user__email", "full_name", "iin")
+    list_filter = ("rank", "unit", "current_position", "marital_status", "combat_participation", "command_scope", "staff_position")
+    inlines = [CommanderLanguageInline]
+    fieldsets = (
+        ("Пользователь", {"fields": ("user",)}),
+        ("Основная информация", {
+            "fields": ("full_name", "birth_date", "phone", "iin")
+        }),
+        ("Личные данные", {
+            "fields": ("birth_place", "nationality", "marital_status")
+        }),
+        ("Служба", {
+            "fields": ("rank", "unit", "current_position", "service_start_date")
+        }),
+        ("Боевая подготовка", {
+            "fields": ("combat_participation", "combat_notes")
+        }),
+        ("Командование (уникально для Командира)", {
+            "fields": ("command_title", "command_scope", "appointed_at", "relieved_at", "staff_position", "subordinates_expected")
+        }),
+        ("Фото", {
+            "fields": ("photo",)
+        }),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('user',) if obj else ()
+
+    # Хочешь автоматически проставлять роль командиру при сохранении — раскомментируй:
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.user and getattr(obj.user, "role", None) != getattr(User.UserRole, "COMMANDER", "COMMANDER"):
+            obj.user.role = getattr(User.UserRole, "COMMANDER", "COMMANDER")
+            obj.user.save(update_fields=["role"])
 
 
 @admin.register(HRProfile)
