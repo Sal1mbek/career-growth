@@ -30,6 +30,8 @@ from apps.insights.views import TrajectoryForecastViewSet
 
 from apps.audit.views import AuditLogViewSet
 
+from apps.discipline.views import RewardViewSet, SanctionViewSet
+
 router = DefaultRouter()
 
 
@@ -83,5 +85,9 @@ router.register(r'insights/forecasts', TrajectoryForecastViewSet, basename='insi
 
 # Audit
 router.register(r'audit/logs', AuditLogViewSet, basename='audit-logs')
+
+# Discipline
+router.register(r'discipline/rewards', RewardViewSet, basename='rewards')
+router.register(r'discipline/sanctions', SanctionViewSet, basename='sanctions')
 
 urlpatterns = router.urls
