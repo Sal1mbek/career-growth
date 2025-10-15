@@ -5,6 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from drf_spectacular.utils import extend_schema, OpenApiExample
+from core.schemas import PayloadTemplatesResponseSerializer
+from core.json_payloads import FEEDBACK360_TEMPLATE, FEEDBACK360_SCHEMA
+
 from core.permissions import IsAdminOrRoot
 from apps.users.models import OfficerProfile, CustomUser, CommanderAssignment
 from apps.assessments.models import (
@@ -88,6 +92,27 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
         return Response(AssessmentSerializer(assessment).data, status=200)
 
+    @extend_schema(
+        summary="Добавить 360-оценку к аттестации",
+        examples=[
+            OpenApiExample(
+                "Пример запроса",
+                value={
+                    "rater": 5,
+                    "payload": {
+                        "competencies": [
+                            {"competency_id": 101, "score": 4},
+                            {"competency_id": 102, "score": 3}
+                        ],
+                        "comments": "Отлично работает в команде",
+                        "payload_version": 1
+                    },
+                    "is_anonymous": False
+                },
+            )
+        ],
+        responses={201: Feedback360Serializer},
+    )
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def add_feedback360(self, request, pk=None):
         """
@@ -120,6 +145,31 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         assessment = self.get_object()
         created = aggregate_assessment_to_ratings(assessment)
         return Response(CompetencyRatingSerializer(created, many=True).data, status=201)
+
+    @extend_schema(
+        summary="Шаблон payload и JSON-schema для Feedback360",
+        responses={200: PayloadTemplatesResponseSerializer},
+        examples=[
+            OpenApiExample(
+                'Feedback360 template',
+                value={
+                    "version": 1,
+                    "schema": FEEDBACK360_SCHEMA,
+                    "templates": {
+                        "DEFAULT": {
+                            "competencies": [{"competency_id": 101, "score": 4}],
+                            "comments": "",
+                            "payload_version": 1
+                        }
+                    }
+                },
+                response_only=True
+            )
+        ],
+    )
+    @action(detail=False, methods=["get"], url_path="feedback360/payload-templates")
+    def feedback360_payload_templates(self, request):
+        return Response({"version": 1, "schema": FEEDBACK360_SCHEMA, "templates": {"DEFAULT": FEEDBACK360_TEMPLATE}})
 
 
 # ---------- Raters ----------

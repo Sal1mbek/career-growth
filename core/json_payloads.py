@@ -34,6 +34,8 @@ NOTIFICATION_TEMPLATES = {
     },
 }
 
+NOTIFICATION_TEMPLATES["ASSESSMENT"]["payload_version"] = 1
+
 NOTIFICATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -41,7 +43,8 @@ NOTIFICATION_SCHEMA = {
         "link": {"type": "string"},
         "message": {"type": "string"},
         "severity": {"type": "string", "enum": ["info", "warning", "critical"]},
-        "data": {"type": "object"}
+        "data": {"type": "object"},
+        "payload_version": {"type": "number"}
     },
     "additionalProperties": True
 }
@@ -49,10 +52,12 @@ NOTIFICATION_SCHEMA = {
 # ----- Feedback360 -----
 FEEDBACK360_TEMPLATE = {
     "competencies": [
-        # {"name": "Командная работа", "score": 1-5}
+        # {"competency_id": 0, "score": 3}
     ],
     "comments": ""
 }
+
+FEEDBACK360_TEMPLATE["payload_version"] = 1
 
 FEEDBACK360_SCHEMA = {
     "type": "object",
@@ -62,13 +67,14 @@ FEEDBACK360_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
+                    "competency_id": {"type": "number"},
                     "score": {"type": "number", "minimum": 1, "maximum": 5}
                 },
-                "required": ["name", "score"]
+                "required": ["competency_id", "score"]
             }
         },
-        "comments": {"type": "string"}
+        "comments": {"type": "string"},
+        "payload_version": {"type": "number"}
     },
     "required": ["competencies"],
     "additionalProperties": False
@@ -95,6 +101,8 @@ RECOMMENDATION_TEMPLATES = {
     }
 }
 
+RECOMMENDATION_TEMPLATES["TRAINING"]["payload_version"] = 1
+
 RECOMMENDATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -108,7 +116,8 @@ RECOMMENDATION_SCHEMA = {
         "actions": {"type": "array", "items": {"type": "string"}},
         "target_position": {"type": "string"},
         "required_competencies": {"type": "array", "items": {"type": "string"}},
-        "gap_analysis": {"type": "object"}
+        "gap_analysis": {"type": "object"},
+        "payload_version": {"type": "number"}
     },
     "additionalProperties": True
 }

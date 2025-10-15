@@ -2,6 +2,8 @@ from rest_framework import serializers
 from apps.assessments.models import (
     Assessment, AssessmentItem, CompetencyRating, Rater, Feedback360
 )
+from core.json_payloads import FEEDBACK360_SCHEMA
+from core.validators import validate_json_payload
 
 
 class AssessmentItemSerializer(serializers.ModelSerializer):
@@ -59,6 +61,9 @@ class Feedback360Serializer(serializers.ModelSerializer):
         model = Feedback360
         fields = ["id", "assessment", "rater", "rater_email", "payload", "is_anonymous", "created_at"]
         read_only_fields = ["created_at"]
+
+    def validate_payload(self, value):
+        return validate_json_payload(FEEDBACK360_SCHEMA, value)
 
 
 class CompetencyRatingSerializer(serializers.ModelSerializer):

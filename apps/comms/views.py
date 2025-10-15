@@ -5,6 +5,9 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, OpenApiTypes
+from core.schemas import PayloadTemplatesResponseSerializer
+from core.json_payloads import NOTIFICATION_TEMPLATES, NOTIFICATION_SCHEMA
 
 from core.responses import APIResponse
 from core.permissions import IsAdminOrRoot, IsCommanderOrHR
@@ -56,6 +59,49 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         count = self.get_queryset().filter(read_at__isnull=True).count()
         return APIResponse.success({"count": count})
 
+    @extend_schema(
+        summary="Получить JSON-schema и шаблоны payload для Notification",
+        responses={200: PayloadTemplatesResponseSerializer},
+        examples=[
+            OpenApiExample(
+                'ASSESSMENT payload template',
+                value={
+                    "version": 1,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "link": {"type": "string"},
+                            "message": {"type": "string"},
+                            "severity": {"type": "string", "enum": ["info", "warning", "critical"]},
+                            "data": {"type": "object"},
+                            "payload_version": {"type": "number"}
+                        },
+                        "additionalProperties": True
+                    },
+                    "templates": {
+                        "ASSESSMENT": {
+                            "title": "Аттестация назначена",
+                            "link": "/assessments/{assessment_id}/",
+                            "data": {
+                                "assessment_id": 0,
+                                "officer": "",
+                                "status": "PLANNED",
+                                "due_date": "YYYY-MM-DD"
+                            },
+                            "payload_version": 1
+                        }
+                    }
+                },
+                response_only=True
+            )
+        ],
+    )
+
+    @action(detail=False, methods=["get"], url_path="payload-templates")
+    def payload_templates(self, request):
+        return Response({"version": 1, "schema": NOTIFICATION_SCHEMA, "templates": NOTIFICATION_TEMPLATES})
+
 
 # ---------- Support Tickets ----------
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -96,6 +142,11 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         qs = SupportTicket.objects.filter(author=request.user).order_by("-created_at")
         return APIResponse.success(SupportTicketSerializer(qs, many=True).data)
 
+    @extend_schema(
+        summary="Ответить в тикете",
+        examples=[OpenApiExample("Пример", value={"body": "Текст ответа"})],
+        responses={201: TicketMessageSerializer}
+    )
     @action(detail=True, methods=["post"])
     def reply(self, request, pk=None):
         """
@@ -124,6 +175,11 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         ticket.save(update_fields=["status"])
         return APIResponse.success(SupportTicketSerializer(ticket).data, "Тикет закрыт")
 
+    @extend_schema(
+        summary="Изменить статус тикета (HR/ADMIN/ROOT/COMMANDER)",
+        examples=[OpenApiExample("Пример", value={"status": "IN_PROGRESS"})],
+        responses={200: SupportTicketSerializer}
+    )
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated & (IsCommanderOrHR | IsAdminOrRoot)])
     def set_status(self, request, pk=None):
         """
