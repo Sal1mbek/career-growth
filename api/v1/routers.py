@@ -61,9 +61,9 @@ router.register(r'hr', HRProfileViewSet, basename='hr')
 router.register(r'assignments', CommanderAssignmentViewSet, basename='assignment')
 
 # Assessment (Аттестации и оценки)
-router.register(r'assessments', AssessmentViewSet, basename='assessments')
 router.register(r'assessments/raters', RaterViewSet, basename='raters')
 router.register(r'assessments/ratings', CompetencyRatingViewSet, basename='ratings')
+router.register(r'assessments', AssessmentViewSet, basename='assessments')
 
 # Career
 router.register(r'career/trajectories', CareerTrajectoryViewSet, basename='career-trajectory')
