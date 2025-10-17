@@ -3,7 +3,11 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.db.models import Q
+from django.db import transaction, IntegrityError
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.shortcuts import get_object_or_404
+from apps.directory.models import Rank, Unit, Position
 from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework import viewsets, mixins, status, filters
@@ -33,6 +37,7 @@ User = get_user_model()
 # -------- Аутентификация / регистрация --------
 class AuthViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     @action(detail=False, methods=["post"])
     def register(self, request):
@@ -157,10 +162,18 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
         # командир/HR/admin/root — читать соответственно своим правам
         if self.action in ("update", "partial_update"):
             return [IsAuthenticated(), IsOwnProfile()]
-        if self.action in ("retrieve",):
+        if self.action in ("retrieve", "me", "me_update", "upload_photo"):
             # доступ офицеру к себе + командиру к подчинённому + staffish
             return [IsAuthenticated()]
         return [IsAuthenticated(), ReadOnlyOrStaffish()]  # ReadOnly из core.permissions если подключишь
+
+    def get_serializer_class(self):
+        # OFFICER при update/partial_update редактирует только безопасные поля
+        if self.action in ("update", "partial_update", "me_update"):
+            u = getattr(self.request, "user", None)
+            if u and getattr(u, "role", None) == "OFFICER":
+                return OfficerProfileUpdateSerializer
+        return super().get_serializer_class()
 
     def retrieve(self, request, *args, **kwargs):
         obj = self.get_object()
@@ -189,6 +202,91 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(OfficerProfileSerializer(obj, context={'request': request}).data)
+
+    @action(detail=True, methods=["post"],
+            permission_classes=[IsAuthenticated, IsHR | IsAdminOrRoot])
+    def set_service_info(self, request, pk=None):
+        """
+        HR/ADMIN/ROOT выставляют служебные поля офицера:
+        payload: { "rank": <id>, "unit": <id>, "current_position": <id>, "service_start_date": "YYYY-MM-DD" }
+        """
+        obj = self.get_object()
+        data = request.data
+        changed = []
+
+        was_rank_none = obj.rank_id is None
+        was_unit_none = obj.unit_id is None
+        was_pos_none = obj.current_position_id is None
+
+        # решаем по входу, будет ли установка значений
+        def _nullish(x):
+            return x in (None, "", 0, "0")
+
+        will_set_rank = ("rank" in data) and not _nullish(data.get("rank"))
+        will_set_unit = ("unit" in data) and not _nullish(data.get("unit"))
+        will_set_pos = ("current_position" in data) and not _nullish(data.get("current_position"))
+        first_assignment_happened = (was_rank_none and will_set_rank) or \
+                                    (was_unit_none and will_set_unit) or \
+                                    (was_pos_none and will_set_pos)
+
+        # разберём дату (если пришла)
+        explicit_ssd = data.get("service_start_date")
+        parsed_ssd = None
+        if explicit_ssd not in (None, ""):
+            parsed_ssd = parse_date(explicit_ssd)
+            if not parsed_ssd:
+                return Response({"detail": "service_start_date должен быть в формате YYYY-MM-DD"}, status=400)
+
+        try:
+            with transaction.atomic():
+                # rank
+                if "rank" in data:
+                    rid = data.get("rank")
+                    obj.rank = None if _nullish(rid) else get_object_or_404(Rank, pk=rid)
+                    changed.append("rank")
+
+                # unit
+                if "unit" in data:
+                    uid = data.get("unit")
+                    obj.unit = None if _nullish(uid) else get_object_or_404(Unit, pk=uid)
+                    changed.append("unit")
+
+                # current_position
+                if "current_position" in data:
+                    pid = data.get("current_position")
+                    obj.current_position = None if _nullish(pid) else get_object_or_404(Position, pk=pid)
+                    changed.append("current_position")
+
+                # service_start_date
+                if parsed_ssd:
+                    obj.service_start_date = parsed_ssd
+                    changed.append("service_start_date")
+                elif first_assignment_happened and not obj.service_start_date:
+                    obj.service_start_date = timezone.now().date()
+                    changed.append("service_start_date")
+
+                if changed:
+                    # уберём дубли полей на всякий
+                    obj.save(update_fields=list(dict.fromkeys(changed)))
+                    obj.refresh_from_db()
+
+        except IntegrityError:
+            return Response(
+                {"detail": "Неверные идентификаторы (rank/unit/current_position). Проверьте, что записи существуют."},
+                status=400
+            )
+
+        return Response(OfficerProfileSerializer(obj, context={'request': request}).data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def upload_photo(self, request):
+        profile = OfficerProfile.objects.get(user=request.user)
+        file = request.FILES.get('photo')
+        if not file:
+            return Response({'detail': 'photo is required'}, status=400)
+        profile.photo = file
+        profile.save(update_fields=['photo'])
+        return Response({'photo_url': request.build_absolute_uri(profile.photo.url)})
 
 
 # ---- Языки ----

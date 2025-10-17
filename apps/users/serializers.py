@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import date
+from django.utils.dateparse import parse_date
 
 from .models import (
     OfficerProfile, CommanderProfile, HRProfile, CommanderAssignment, OfficerLanguage, CommanderLanguage
@@ -16,9 +17,25 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password_confirm = serializers.CharField(write_only=True)
 
+    # ---- Доп. поля профиля офицера (опционально при регистрации) ----
+    full_name = serializers.CharField(required=False, allow_blank=True)
+    birth_date = serializers.DateField(required=False, allow_null=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    iin = serializers.CharField(required=False, allow_blank=True, max_length=12)
+    birth_place = serializers.CharField(required=False, allow_blank=True)
+    nationality = serializers.CharField(required=False, allow_blank=True)
+    marital_status = serializers.CharField(required=False, allow_blank=True)
+    combat_participation = serializers.BooleanField(required=False, default=False)
+    combat_notes = serializers.CharField(required=False, allow_blank=True)
+    photo = serializers.ImageField(required=False, allow_null=True, write_only=True)
+
     class Meta:
         model = User
-        fields = ["email", "password", "password_confirm"]
+        fields = [
+            "email", "password", "password_confirm",
+            "full_name", "birth_date", "phone", "iin", "birth_place", "nationality",
+            "marital_status", "combat_participation", "combat_notes", "photo"
+        ]
 
     def validate(self, attrs):
         if attrs["password"] != attrs["password_confirm"]:
@@ -31,11 +48,26 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
-        return User.objects.create_user(
+        photo = validated_data.pop("photo", None)
+        profile_fields = {k: validated_data.pop(k, None) for k in [
+            "full_name", "birth_date", "phone", "iin", "birth_place",
+            "nationality", "marital_status", "combat_participation", "combat_notes",
+        ]}
+        user = User.objects.create_user(
             email=validated_data["email"],
             password=validated_data["password"],
             role=getattr(User.UserRole, "OFFICER", "OFFICER")
         )
+        # профиль создаётся сигналом; тут — мягкое обновление
+        from .models import OfficerProfile
+        prof, _ = OfficerProfile.objects.get_or_create(user=user)
+        for k, v in profile_fields.items():
+            if v not in (None, "", []):
+                setattr(prof, k, v)
+        if photo:
+            prof.photo = photo
+        prof.save()
+        return user
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -91,12 +123,25 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_service_years(self, obj):
-        if not obj.service_start_date:
+        ssd = obj.service_start_date
+        if not ssd:
+            return None
+        # если по какой-то причине пришла строка — аккуратно распарсим
+        if isinstance(ssd, str):
+            ssd = parse_date(ssd)
+        if not ssd:
             return None
         today = date.today()
-        return today.year - obj.service_start_date.year - (
-                (today.month, today.day) < (obj.service_start_date.month, obj.service_start_date.day)
-        )
+        return today.year - ssd.year - ((today.month, today.day) < (ssd.month, ssd.day))
+
+    def get_fields(self):
+        fields = super().get_fields()
+        req = self.context.get("request")
+        if req and getattr(req.user, "role", None) == "OFFICER":
+            for f in ("rank", "unit", "current_position"):
+                if f in fields:
+                    fields[f].read_only = True
+        return fields
 
 
 class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
