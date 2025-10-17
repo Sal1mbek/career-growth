@@ -1,4 +1,5 @@
 # Пользователи и профили
+from datetime import date
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
@@ -185,7 +186,7 @@ class HRProfile(models.Model):
 class CommanderAssignment(models.Model):
     commander = models.ForeignKey(CommanderProfile, on_delete=models.CASCADE)
     officer = models.ForeignKey(OfficerProfile, on_delete=models.CASCADE)
-    since = models.DateField()
+    since = models.DateField(default=date.today)
     until = models.DateField(null=True, blank=True)
 
     class Meta:

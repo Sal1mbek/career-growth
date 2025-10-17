@@ -134,17 +134,26 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
             return qs.filter(user=u)
 
         if u.role == "COMMANDER":
-            # Командир видит только своих подчинённых (активные назначения)
             try:
-                me = CommanderProfile.objects.get(user=u)
+                me = CommanderProfile.objects.select_related("unit").get(user=u)
             except CommanderProfile.DoesNotExist:
                 return qs.none()
-            active_ids = CommanderAssignment.objects.filter(
+
+            today = timezone.now().date()
+
+            # 1) Все офицеры его подразделения
+            qs_unit = OfficerProfile.objects.filter(unit=me.unit)
+
+            # 2) Оверрайды (активные назначения)
+            include_ids = CommanderAssignment.objects.filter(
                 commander=me
             ).filter(
-                Q(until__isnull=True) | Q(until__gte=timezone.now().date())
+                Q(until__isnull=True) | Q(until__gte=today)
             ).values_list("officer_id", flat=True)
-            return qs.filter(id__in=active_ids)
+
+            qs_override = OfficerProfile.objects.filter(id__in=include_ids)
+
+            return (qs_unit | qs_override).distinct()
 
         if u.role == "HR":
             # HR видит офицеров в своих подразделениях
@@ -337,8 +346,12 @@ class CommanderProfileViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), (IsOwnProfile | IsAdminOrRoot)()]
         if self.action in ("retrieve",):
             return [IsAuthenticated()]
-        if self.action in ("subordinates", "assign", "unassign"):
+        if self.action in ("subordinates",):
+            # видеть подчинённых может сам командир (и админ/рут)
             return [IsAuthenticated(), (IsCommander | IsAdminOrRoot)()]
+        if self.action in ("assign", "unassign"):
+            # назначать/снимать оверрайды может HR (и админ/рут)
+            return [IsAuthenticated(), (IsHR | IsAdminOrRoot)()]
         return [IsAuthenticated(), ReadOnlyOrStaffish()]
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
@@ -363,19 +376,26 @@ class CommanderProfileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
     def subordinates(self, request):
         """Получить список активных подчинённых командира"""
-        me = CommanderProfile.objects.filter(user=request.user).first()
+        me = CommanderProfile.objects.filter(user=request.user).select_related("unit").first()
         if not me:
             return Response({"detail": "Профиль командира не найден"}, status=404)
 
-        active_ids = CommanderAssignment.objects.filter(
+        today = timezone.now().date()
+
+        # 1) По подразделению
+        qs_unit = OfficerProfile.objects.filter(unit=me.unit)
+
+        # 2) Позитивные оверрайды (активные назначения)
+        include_ids = CommanderAssignment.objects.filter(
             commander=me
         ).filter(
-            Q(until__isnull=True) | Q(until__gte=timezone.now().date())
+            Q(until__isnull=True) | Q(until__gt=today)
         ).values_list("officer_id", flat=True)
 
-        qs = OfficerProfile.objects.filter(id__in=active_ids).select_related(
-            "user", "rank", "unit", "current_position"
-        ).order_by("full_name")
+        qs_override = OfficerProfile.objects.filter(id__in=include_ids)
+
+        qs = (qs_unit | qs_override).select_related("user", "rank", "unit", "current_position").distinct().order_by(
+            "full_name")
 
         page = self.paginate_queryset(qs)
         ser = OfficerProfileSerializer(
@@ -383,52 +403,63 @@ class CommanderProfileViewSet(viewsets.ModelViewSet):
         )
         return self.get_paginated_response(ser.data) if page else Response(ser.data)
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, (IsHR | IsAdminOrRoot)])
     def assign(self, request):
-        """Назначить офицера подчинённым
-        Payload: {"officer_id": <id>, "since": "2025-10-01"}
         """
-        me = CommanderProfile.objects.filter(user=request.user).first()
-        if not me:
-            return Response({"detail": "Профиль командира не найден"}, status=404)
-
+        HR/ADMIN/ROOT: назначить офицера подчинённым (оверрайд).
+        Payload: {"commander_id": <id>, "officer_id": <id>, "since": "YYYY-MM-DD" (optional)}
+        """
+        commander_id = request.data.get("commander_id")
         officer_id = request.data.get("officer_id")
         since = request.data.get("since") or timezone.now().date()
 
-        if not officer_id:
-            return Response({"detail": "officer_id обязателен"}, status=400)
+        if not commander_id or not officer_id:
+            return Response({"detail": "commander_id и officer_id обязательны"}, status=400)
 
-        try:
-            officer = OfficerProfile.objects.get(id=officer_id)
-        except OfficerProfile.DoesNotExist:
-            return Response({"detail": "Офицер не найден"}, status=404)
+        commander = get_object_or_404(CommanderProfile, id=commander_id)
+        officer = get_object_or_404(OfficerProfile, id=officer_id)
+
+        # HR ограничиваем его зонами ответственности
+        if getattr(request.user, "role", "") == "HR":
+            hrp = HRProfile.objects.filter(user=request.user).first()
+            if not hrp:
+                return Response({"detail": "Профиль HR не найден"}, status=404)
+            # HR может работать только если и командир, и офицер относятся к его юнитам
+            allowed_units = set(hrp.responsible_units.values_list("id", flat=True))
+            if (commander.unit_id not in allowed_units) or (officer.unit_id not in allowed_units):
+                return Response({"detail": "Недостаточно прав для выбранных подразделений"}, status=403)
 
         ca, created = CommanderAssignment.objects.get_or_create(
-            commander=me, officer=officer, since=since
+            commander=commander, officer=officer, since=since
         )
-        return Response(
-            {"message": "Назначено", "id": ca.id},
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        )
+        return Response({"message": "Назначено", "id": ca.id},
+                        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, IsCommander | IsAdminOrRoot])
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, (IsHR | IsAdminOrRoot)])
     def unassign(self, request):
-        """Снять офицера (установить until)
-        Payload: {"officer_id": <id>, "until": "2025-12-01"}
         """
-        me = CommanderProfile.objects.filter(user=request.user).first()
-        if not me:
-            return Response({"detail": "Профиль командира не найден"}, status=404)
-
+        HR/ADMIN/ROOT: снять оверрайд.
+        Payload: {"commander_id": <id>, "officer_id": <id>, "until": "YYYY-MM-DD" (optional)}
+        """
+        commander_id = request.data.get("commander_id")
         officer_id = request.data.get("officer_id")
-        if not officer_id:
-            return Response({"detail": "officer_id обязателен"}, status=400)
+        if not commander_id or not officer_id:
+            return Response({"detail": "commander_id и officer_id обязательны"}, status=400)
+
+        commander = get_object_or_404(CommanderProfile, id=commander_id)
+        # HR-проверка зоны ответственности — аналогично assign()
+        if getattr(request.user, "role", "") == "HR":
+            hrp = HRProfile.objects.filter(user=request.user).first()
+            if not hrp:
+                return Response({"detail": "Профиль HR не найден"}, status=404)
+            allowed_units = set(hrp.responsible_units.values_list("id", flat=True))
+            if commander.unit_id not in allowed_units:
+                return Response({"detail": "Недостаточно прав для данного подразделения"}, status=403)
 
         ca = CommanderAssignment.objects.filter(
-            commander=me, officer_id=officer_id
-        ).filter(
-            Q(until__isnull=True) | Q(until__gte=timezone.now().date())
-        ).order_by("-since").first()
+            commander=commander, officer_id=officer_id
+        ).filter(Q(until__isnull=True) | Q(until__gte=timezone.now().date())
+                 ).order_by("-since").first()
 
         if not ca:
             return Response({"detail": "Активное назначение не найдено"}, status=404)
@@ -436,6 +467,50 @@ class CommanderProfileViewSet(viewsets.ModelViewSet):
         ca.until = request.data.get("until") or timezone.now().date()
         ca.save(update_fields=["until"])
         return Response({"message": "Снято"})
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsHR | IsAdminOrRoot],
+            parser_classes=[JSONParser, FormParser, MultiPartParser])
+    def set_service_info(self, request, pk=None):
+        """
+        HR/ADMIN/ROOT: установить служебные поля командира (звание, подразделение, должность, даты).
+        payload: { "rank": <id>, "unit": <id>, "current_position": <id>,
+                   "service_start_date": "YYYY-MM-DD",
+                   "appointed_at": "YYYY-MM-DD", "relieved_at": "YYYY-MM-DD" }
+        """
+        obj = self.get_object()
+        data = request.data
+        from django.utils.dateparse import parse_date
+        changed = []
+
+        def _nullish(x):
+            return x in (None, "", 0, "0")
+
+        # справочники
+        if "rank" in data:
+            rid = data.get("rank")
+            obj.rank = None if _nullish(rid) else get_object_or_404(Rank, pk=rid);
+            changed.append("rank")
+        if "unit" in data:
+            uid = data.get("unit")
+            obj.unit = None if _nullish(uid) else get_object_or_404(Unit, pk=uid);
+            changed.append("unit")
+        if "current_position" in data:
+            pid = data.get("current_position")
+            obj.current_position = None if _nullish(pid) else get_object_or_404(Position, pk=pid);
+            changed.append("current_position")
+
+        # даты
+        for field in ("service_start_date", "appointed_at", "relieved_at"):
+            if field in data and data.get(field) not in (None, ""):
+                dt = parse_date(data.get(field))
+                if not dt: return Response({"detail": f"{field} должен быть в формате YYYY-MM-DD"}, status=400)
+                setattr(obj, field, dt);
+                changed.append(field)
+
+        if changed:
+            obj.save(update_fields=list(dict.fromkeys(changed)))
+
+        return Response(CommanderProfileSerializer(obj, context={'request': request}).data)
 
 
 class CommanderLanguageViewSet(viewsets.ModelViewSet):
