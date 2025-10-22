@@ -29,7 +29,7 @@ class BaseMeasure(models.Model):
     title = models.CharField(max_length=255, blank=True)  # например "Объявлена благодарность"
     description = models.TextField(blank=True)
 
-    initiator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+    initiator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                   related_name="%(class)s_initiated")
     status = models.CharField(max_length=16, choices=MeasureStatus.choices, default=MeasureStatus.DRAFT, db_index=True)
 

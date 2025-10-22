@@ -92,8 +92,8 @@ class BasePersonProfile(models.Model):
     combat_participation = models.BooleanField(default=False)
     combat_notes = models.CharField(max_length=255, blank=True)
 
-    rank = models.ForeignKey('directory.Rank', on_delete=models.PROTECT, null=True)
-    unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT, null=True)
+    rank = models.ForeignKey('directory.Rank', on_delete=models.CASCADE, null=True)
+    unit = models.ForeignKey('directory.Unit', on_delete=models.CASCADE, null=True)
     current_position = models.ForeignKey('directory.Position', on_delete=models.SET_NULL, null=True, blank=True)
 
     service_start_date = models.DateField(null=True, blank=True)

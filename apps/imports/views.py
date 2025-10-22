@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404
 from typing import Union, List, Optional
 
@@ -339,6 +339,8 @@ class LD8ZipImportView(APIView):
 
         # Создание записей (очень аккуратно, best-effort)
         created = []
+        updated = []
+
         with transaction.atomic():
             from django.contrib.auth import get_user_model
             User = get_user_model()
@@ -357,7 +359,18 @@ class LD8ZipImportView(APIView):
                     user.set_password("Testpass123")
                     user.save(update_fields=["password"])
 
-                prof, _ = OfficerProfile.objects.get_or_create(user=user)
+                prof = None
+                iin_val = (item.get("iin") or "").strip()
+                if iin_val:
+                    prof = OfficerProfile.objects.filter(iin=iin_val).first()
+
+                if prof is None:
+                    # Нет профиля по ИИН — берём/создаём по user
+                    prof, _ = OfficerProfile.objects.get_or_create(user=user)
+                    was_created = True
+                else:
+                    was_created = False
+
                 fio = item.get("full_name") or ""
                 if fio:
                     prof.full_name = fio
@@ -368,8 +381,8 @@ class LD8ZipImportView(APIView):
                 if b.get("place"):
                     prof.birth_place = b["place"]
 
-                if item.get("iin"):
-                    prof.iin = item["iin"]
+                if iin_val:
+                    prof.iin = iin_val
                 if item.get("nationality"):
                     prof.nationality = item["nationality"]
 
@@ -398,8 +411,16 @@ class LD8ZipImportView(APIView):
                     # дату начала службы можно прибить к service_start_date, если пусто
                     if not prof.service_start_date and item["rank"].get("since"):
                         prof.service_start_date = parse_date(item["rank"]["since"])
-                prof.save()
-                created.append({"user_id": user.id, "profile_id": prof.id, "full_name": prof.full_name})
+                try:
+                    prof.save()
+                except IntegrityError as e:
+                    errors.append({"file": item.get("source_file"), "error": f"save failed: {str(e)}"})
+                    continue
 
-        return Response({"dry_run": False, "created": created, "parsed_count": len(results), "errors": errors},
-                        status=201)
+                rec = {"user_id": user.id, "profile_id": prof.id, "full_name": prof.full_name}
+                (created if was_created else updated).append(rec)
+
+        return Response(
+            {"dry_run": False, "created": created, "updated": updated, "parsed_count": len(results), "errors": errors},
+            status=201
+        )

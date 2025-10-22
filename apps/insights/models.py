@@ -6,7 +6,7 @@ from django.db import models
 class TrajectoryForecast(models.Model):
     """Прогноз карьерной траектории (ИИ)"""
     officer = models.ForeignKey('users.OfficerProfile', on_delete=models.CASCADE)
-    target_position = models.ForeignKey('directory.Position', on_delete=models.PROTECT)
+    target_position = models.ForeignKey('directory.Position', on_delete=models.CASCADE)
     probability = models.DecimalField(max_digits=5, decimal_places=2,
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     horizon_months = models.PositiveSmallIntegerField()

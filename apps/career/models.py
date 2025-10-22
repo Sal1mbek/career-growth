@@ -11,7 +11,7 @@ class CareerTrajectory(models.Model):
         CANCELLED = 'CANCELLED', 'Отменена'
 
     officer = models.ForeignKey('users.OfficerProfile', on_delete=models.CASCADE, related_name='trajectories')
-    target_position = models.ForeignKey('directory.Position', on_delete=models.PROTECT)
+    target_position = models.ForeignKey('directory.Position', on_delete=models.CASCADE)
     horizon_months = models.PositiveSmallIntegerField()
     status = models.CharField(max_length=20, choices=TrajectoryStatus.choices, default=TrajectoryStatus.DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)

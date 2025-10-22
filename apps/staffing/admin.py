@@ -36,12 +36,18 @@ class AssignmentAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         # Позволяем смотреть, но не редактировать после создания
+        if request.user.is_superuser:
+            return True
+
         if obj is not None:
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
         # Удаление только для черновиков
-        if obj is not None and obj.state != 'draft':
-            return False
-        return super().has_delete_permission(request, obj)
+        if request.user.is_superuser:
+            return True
+
+        if obj is None:
+            return super().has_delete_permission(request, obj)
+        return getattr(obj, "state", None) == "draft"

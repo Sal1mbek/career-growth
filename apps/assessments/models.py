@@ -23,7 +23,7 @@ class Assessment(models.Model):
 class AssessmentItem(models.Model):
     """Оценка по компетенции в рамках аттестации"""
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name='items')
-    competency = models.ForeignKey('directory.Competency', on_delete=models.PROTECT)
+    competency = models.ForeignKey('directory.Competency', on_delete=models.CASCADE)
     score = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField(blank=True)
 
@@ -36,7 +36,7 @@ class CompetencyRating(models.Model):
         TEST = 'TEST', 'Тест'
 
     officer = models.ForeignKey('users.OfficerProfile', on_delete=models.CASCADE, related_name='competency_ratings')
-    competency = models.ForeignKey('directory.Competency', on_delete=models.PROTECT)
+    competency = models.ForeignKey('directory.Competency', on_delete=models.CASCADE)
     score = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
     source = models.CharField(max_length=20, choices=RatingSource.choices)
     assessed_at = models.DateTimeField(auto_now_add=True)

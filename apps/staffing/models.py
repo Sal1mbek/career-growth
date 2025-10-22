@@ -12,8 +12,8 @@ class Vacancy(models.Model):
         IN_PROGRESS = 'IN_PROGRESS', 'В работе'
         CLOSED = 'CLOSED', 'Закрыта'
 
-    position = models.ForeignKey('directory.Position', on_delete=models.PROTECT)
-    unit = models.ForeignKey('directory.Unit', on_delete=models.PROTECT)
+    position = models.ForeignKey('directory.Position', on_delete=models.CASCADE)
+    unit = models.ForeignKey('directory.Unit', on_delete=models.CASCADE)
     open_from = models.DateField()
     open_to = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=VacancyStatus.choices, default=VacancyStatus.OPEN)

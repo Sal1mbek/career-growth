@@ -26,7 +26,7 @@ class Unit(models.Model):
 
 
 class Position(models.Model):
-    unit = models.ForeignKey(Unit, on_delete=models.PROTECT)
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True)
     description = models.TextField(blank=True)
@@ -39,7 +39,7 @@ class Position(models.Model):
 
 class PositionRequirement(models.Model):
     position = models.ForeignKey(Position, on_delete=models.CASCADE, related_name='requirements')
-    min_rank = models.ForeignKey(Rank, on_delete=models.PROTECT)
+    min_rank = models.ForeignKey(Rank, on_delete=models.CASCADE)
     min_service_years = models.PositiveSmallIntegerField(default=0)
     required_education = models.CharField(max_length=255, blank=True)
 
@@ -57,7 +57,7 @@ class Competency(models.Model):
 
 class CompetencyRequirement(models.Model):
     position = models.ForeignKey(Position, on_delete=models.CASCADE, related_name='competency_requirements')
-    competency = models.ForeignKey(Competency, on_delete=models.PROTECT)
+    competency = models.ForeignKey(Competency, on_delete=models.CASCADE)
     min_score = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     is_mandatory = models.BooleanField(default=True)
 
@@ -72,7 +72,7 @@ class Provider(models.Model):
 
 
 class TrainingCourse(models.Model):
-    provider = models.ForeignKey(Provider, on_delete=models.PROTECT)
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True)
     hours = models.PositiveIntegerField(default=0)

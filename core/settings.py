@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 import environ
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -95,6 +96,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+
+# Настройки JWT токенов
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
+
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7), # Установите, например, 7 дней
+
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "UPDATE_LAST_LOGIN": False,
+
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY, # Использует ваш существующий SECRET_KEY
+    # ... можно добавить другие настройки из документации Simple JWT
+}
 
 
 # email
