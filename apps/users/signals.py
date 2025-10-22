@@ -11,7 +11,11 @@ def ensure_profile_exists(sender, instance, created, **kwargs):
     """Автоматически создаёт профиль при создании юзера с соответствующей ролью"""
     if instance.role == User.UserRole.OFFICER:
         OfficerProfile.objects.get_or_create(user=instance)
-    elif instance.role == User.UserRole.COMMANDER:
+
+    # 2) профиль командира при необходимости
+    if instance.role == User.UserRole.COMMANDER:
         CommanderProfile.objects.get_or_create(user=instance)
-    elif instance.role == User.UserRole.HR:
+
+    # 3) профиль HR при необходимости
+    if instance.role == User.UserRole.HR:
         HRProfile.objects.get_or_create(user=instance)

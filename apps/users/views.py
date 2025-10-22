@@ -572,6 +572,62 @@ class HRProfileViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return self.get_paginated_response(ser.data) if page else Response(ser.data)
 
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated, IsAdminOrRoot])
+    def set_units(self, request, pk=None):
+        """ADMIN/ROOT: задать список подразделений, за которые отвечает HR."""
+        obj = self.get_object()
+        unit_ids = request.data.get("responsible_units", [])
+
+        # 1. Проверка, что входные данные — это список
+        if not isinstance(unit_ids, list):
+            return Response(
+                {"responsible_units": "Список ID подразделений должен быть передан в виде списка."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2. Проверка существования всех ID
+        input_set = set(unit_ids)
+
+        # Получаем ID, которые реально существуют в базе
+        existing_unit_ids = Unit.objects.filter(pk__in=input_set).values_list('id', flat=True)
+        existing_set = set(existing_unit_ids)
+
+        # Находим ID, которые были переданы, но не найдены в базе
+        non_existent_ids = list(input_set - existing_set)
+
+        # 3. Возвращаем 400 ошибку, если есть несуществующие ID
+        if non_existent_ids:
+            # Сортируем для более удобного чтения ошибки
+            non_existent_ids.sort()
+            return Response(
+                {
+                    "responsible_units": (
+                        f"Подразделения с ID: {non_existent_ids} не существуют. "
+                        f"Не удалось обновить список ответственных подразделений."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 4. Если все ID существуют, выполняем атомарную операцию
+        try:
+            with transaction.atomic():
+                # Метод set принимает список существующих ID.
+                # Мы передаем ему те ID, которые прошли нашу проверку.
+                obj.responsible_units.set(unit_ids)
+
+                # Обновление и возврат данных
+            obj.refresh_from_db()
+            return Response(HRProfileSerializer(obj).data)
+
+        except Exception as e:
+            # Эта ветка на всякий случай, если ошибка возникнет на другом уровне
+            # (хотя после проверки ID это маловероятно)
+            return Response(
+                {"detail": f"Произошла ошибка при сохранении: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class CommanderAssignmentViewSet(viewsets.ModelViewSet):
     queryset = CommanderAssignment.objects.select_related("commander__user",
