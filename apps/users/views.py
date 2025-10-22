@@ -113,6 +113,172 @@ class UserViewSet(viewsets.ModelViewSet):
         user.save(update_fields=["password", "password_changed_at"])
         return Response({"message": "Пароль изменён"})
 
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, (IsHR | IsAdminOrRoot)])
+    def promote_to_commander(self, request):
+        """
+        HR/ADMIN/ROOT: повысить пользователя до командира и назначить на unit.
+        payload: {"user_id": <id>, "unit": <unit_id>, "appointed_at": "YYYY-MM-DD", "force": true|false}
+        HR-ограничение: unit должен входить в его responsible_units.
+        """
+        user_id = request.data.get("user_id")
+        unit_id = request.data.get("unit")
+        if not user_id or not unit_id:
+            return Response({"detail": "user_id и unit обязательны"}, status=400)
+
+        user = get_object_or_404(User, id=user_id)
+        unit = get_object_or_404(Unit, id=unit_id)
+
+        # HR может работать только в своих юнитах
+        if getattr(request.user, "role", "") == "HR":
+            hrp = HRProfile.objects.filter(user=request.user).first()
+            if not hrp or unit.id not in set(hrp.responsible_units.values_list("id", flat=True)):
+                return Response({"detail": "Недостаточно прав для данного подразделения"}, status=403)
+
+        appointed_at = request.data.get("appointed_at") or timezone.now().date()
+        force = str(request.data.get("force", "false")).lower() in ("1", "true", "yes")
+
+        # Контроль единственного активного командира на unit
+        active = CommanderProfile.objects.filter(unit=unit, relieved_at__isnull=True).exclude(user=user).first()
+        if active and not force:
+            return Response(
+                {
+                    "detail": f"В {unit.name} уже есть активный командир (user_id={active.user_id}). Укажите force=true или снимите действующего."},
+                status=409
+            )
+        if active and force:
+            active.relieved_at = appointed_at
+            active.save(update_fields=["relieved_at"])
+
+        # выдать/обновить роль
+        if user.role != User.UserRole.COMMANDER:
+            user.role = User.UserRole.COMMANDER
+            user.save(update_fields=["role"])
+
+        # профили
+        cp, _ = CommanderProfile.objects.get_or_create(user=user)
+        cp.unit = unit
+        cp.appointed_at = appointed_at
+        cp.relieved_at = None
+        cp.save(update_fields=["unit", "appointed_at", "relieved_at"])
+
+        # офицерский профиль — оставить как есть (командир тоже офицер в системе)
+        OfficerProfile.objects.get_or_create(user=user)
+
+        return Response({"message": "Назначен командиром", "user_id": user.id, "unit": unit.id})
+
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, (IsHR | IsAdminOrRoot)])
+    def relieve_commander(self, request):
+        """
+        HR/ADMIN/ROOT: снять командира с должности (закрыть его активность на unit).
+        payload: {"user_id": <id>, "relieved_at": "YYYY-MM-DD", "downgrade_role": false}
+        HR-ограничение: unit командира должен входить в его responsible_units.
+        """
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return Response({"detail": "user_id обязателен"}, status=400)
+
+        user = get_object_or_404(User, id=user_id)
+        cp = CommanderProfile.objects.filter(user=user, relieved_at__isnull=True).first()
+        if not cp:
+            return Response({"detail": "Активное командование не найдено"}, status=404)
+
+        # HR-проверка зон ответственности
+        if getattr(request.user, "role", "") == "HR":
+            hrp = HRProfile.objects.filter(user=request.user).first()
+            if not hrp or cp.unit_id not in set(hrp.responsible_units.values_list("id", flat=True)):
+                return Response({"detail": "Недостаточно прав для данного подразделения"}, status=403)
+
+        dt = request.data.get("relieved_at") or timezone.now().date()
+        cp.relieved_at = dt
+        cp.save(update_fields=["relieved_at"])
+
+        # по политике: опционально понизить роль обратно до OFFICER
+        downgrade = str(request.data.get("downgrade_role", "false")).lower() in ("1", "true", "yes")
+        if downgrade:
+            user.role = User.UserRole.OFFICER
+            user.save(update_fields=["role"])
+
+        return Response({"message": "Командир снят", "user_id": user.id, "relieved_at": str(dt)})
+
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated, IsAdminOrRoot])
+    def set_role(self, request, pk=None):
+        """
+        ADMIN/ROOT: выставить роль пользователю с опциональными побочными действиями.
+        payload:
+          {
+            "role": "OFFICER|HR|COMMANDER|ADMIN|ROOT",
+            # если делаем HR:
+            "responsible_units": [<unit_id>, ...],   # опционально
+            # если делаем COMMANDER:
+            "unit": <unit_id>,                       # опционально
+            "appointed_at": "YYYY-MM-DD",            # опционально, иначе today
+            "force": true|false,                     # для вытеснения активного командира юнита
+            # если снимаем командование (меняем с COMMANDER на другую роль):
+            "relieved_at": "YYYY-MM-DD"              # опционально, иначе today
+          }
+        """
+        user = get_object_or_404(User, pk=pk)
+        new_role = request.data.get("role")
+        if new_role not in [r[0] for r in User.UserRole.choices]:
+            return Response({"detail": "Некорректная роль"}, status=400)
+
+        # 1) Безопасности: не позволяем снять последнего ROOT'а
+        if user.role == User.UserRole.ROOT and new_role != User.UserRole.ROOT:
+            # посчитаем остальных рутов
+            roots_cnt = User.objects.filter(role=User.UserRole.ROOT, is_active=True).exclude(id=user.id).count()
+            if roots_cnt == 0:
+                return Response({"detail": "Нельзя понизить последнего активного ROOT пользователя"}, status=403)
+
+        # 2) Если уходим ИЗ COMMANDER в другую роль — аккуратно закрыть активное командование
+        if user.role == User.UserRole.COMMANDER and new_role != User.UserRole.COMMANDER:
+            cp_active = CommanderProfile.objects.filter(user=user, relieved_at__isnull=True).first()
+            if cp_active:
+                relieved_at = request.data.get("relieved_at") or timezone.now().date()
+                cp_active.relieved_at = relieved_at
+                cp_active.save(update_fields=["relieved_at"])
+
+        # 3) Установка роли
+        user.role = new_role
+        user.save(update_fields=["role"])
+
+        # 4) Обеспечиваем профили
+        OfficerProfile.objects.get_or_create(user=user)  # офицерский нужен всем
+        if new_role == User.UserRole.HR:
+            hrp, _ = HRProfile.objects.get_or_create(user=user)
+            # если прислали зоны ответственности — применим
+            if "responsible_units" in request.data:
+                unit_ids = request.data.get("responsible_units") or []
+                # валидация существования ID по желанию
+                hrp.responsible_units.set(unit_ids)
+
+        if new_role == User.UserRole.COMMANDER:
+            cp, _ = CommanderProfile.objects.get_or_create(user=user)
+            unit_id = request.data.get("unit")
+            if unit_id:
+                unit = get_object_or_404(Unit, id=unit_id)
+                appointed_at = request.data.get("appointed_at") or timezone.now().date()
+                force = str(request.data.get("force", "false")).lower() in ("1", "true", "yes")
+
+                # проверка единственного активного командира в unit
+                active = CommanderProfile.objects.filter(unit=unit, relieved_at__isnull=True).exclude(user=user).first()
+                if active and not force:
+                    return Response(
+                        {"detail": f"В {unit.name} уже есть активный командир (user_id={active.user_id}). "
+                                   f"Укажите force=true или снимите действующего."},
+                        status=409
+                    )
+                if active and force:
+                    active.relieved_at = appointed_at
+                    active.save(update_fields=["relieved_at"])
+
+                cp.unit = unit
+                cp.appointed_at = appointed_at
+                cp.relieved_at = None
+                cp.save(update_fields=["unit", "appointed_at", "relieved_at"])
+
+        # Ничего не удаляем (история важна): CommanderProfile/HRProfile остаются, но «закрыты» по датам/без юнита
+        return Response({"message": "Роль обновлена", "user_id": user.id, "role": new_role})
+
 
 # -------- Профили --------
 class OfficerProfileViewSet(viewsets.ModelViewSet):
