@@ -33,7 +33,7 @@ def verify_email_django(request, uidb64, token):
             user.is_active = True
         user.save(update_fields=['email_verified', 'is_active'])
 
-    front = getattr(settings, "FRONTEND_APP_URL", "http://localhost:5173")
+    front = getattr(settings, "FRONTEND_APP_URL", "http://34.173.17.206/")
     return redirect(f"{front}/auth/verify-result?success={'1' if ok else '0'}")
 
 

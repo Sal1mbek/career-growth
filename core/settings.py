@@ -115,7 +115,7 @@ DEFAULT_FROM_EMAIL = os.getenv(
     f"Career Growth <{EMAIL_HOST_USER or 'no-reply@career-growth.local'}>"
 )
 
-FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL", "http://localhost:5173")
+FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL", "http://34.173.17.206/")
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
