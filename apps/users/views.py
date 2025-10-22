@@ -1,3 +1,4 @@
+import base64, os
 from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -278,6 +279,38 @@ class UserViewSet(viewsets.ModelViewSet):
 
         # Ничего не удаляем (история важна): CommanderProfile/HRProfile остаются, но «закрыты» по датам/без юнита
         return Response({"message": "Роль обновлена", "user_id": user.id, "role": new_role})
+
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def twofa_toggle(self, request):
+        """
+        Включить/выключить 2FA для текущего пользователя.
+        body: {"enabled": true|false}
+        Возвращает otpauth URL, если включаем впервые (для QR).
+        """
+        user = request.user
+        enabled = str(request.data.get("enabled", "")).lower() in ("1", "true", "yes")
+
+        otpauth = None
+        if enabled:
+            # если секрета нет — сгенерим
+            if not user.twofa_secret:
+                # 20 байт -> base32 для TOTP
+                user.twofa_secret = base64.b32encode(os.urandom(20)).decode("utf-8").rstrip("=")
+            user.twofa_enabled = True
+            # otpauth-ссылка для генерации QR в приложении-аутентификаторе
+            issuer = "CareerGrowth"
+            label = user.email
+            otpauth = f"otpauth://totp/{issuer}:{label}?secret={user.twofa_secret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30"
+        else:
+            user.twofa_enabled = False
+            # при желании можно чистить секрет:
+            # user.twofa_secret = ""
+
+        user.save(update_fields=["twofa_enabled", "twofa_secret"])
+        resp = {"twofa_enabled": user.twofa_enabled}
+        if otpauth:
+            resp["otpauth_url"] = otpauth
+        return Response(resp)
 
 
 # -------- Профили --------
