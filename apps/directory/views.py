@@ -11,6 +11,7 @@ from .serializers import (
     RankSerializer, UnitSerializer, PositionSerializer, PositionRequirementSerializer,
     CompetencySerializer, CompetencyRequirementSerializer, ProviderSerializer, TrainingCourseSerializer
 )
+from apps.users.models import CommanderProfile
 
 
 class BaseCatalogViewSet(viewsets.ModelViewSet):
@@ -40,6 +41,15 @@ class UnitViewSet(BaseCatalogViewSet):
     filterset_fields = ["is_active", "parent"]
     search_fields = ["name", "code"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        # Командир видит только свой юнит
+        if getattr(u, "role", "") == "COMMANDER":
+            me = CommanderProfile.objects.filter(user=u).select_related("unit").first()
+            return qs.filter(id=me.unit_id) if me and me.unit_id else qs.none()
+        return qs
+
 
 class PositionViewSet(BaseCatalogViewSet):
     queryset = Position.objects.select_related("unit").all()
@@ -53,6 +63,15 @@ class PositionRequirementViewSet(BaseCatalogViewSet):
     serializer_class = PositionRequirementSerializer
     filterset_fields = ["position", "min_rank"]
     search_fields = ["position__title", "required_education"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        # Командир видит должности только своего юнита
+        if getattr(u, "role", "") == "COMMANDER":
+            me = CommanderProfile.objects.filter(user=u).select_related("unit").first()
+            return qs.filter(unit_id=me.unit_id) if me and me.unit_id else qs.none()
+        return qs
 
 
 class CompetencyViewSet(BaseCatalogViewSet):

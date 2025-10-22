@@ -11,6 +11,7 @@ from core.json_payloads import NOTIFICATION_TEMPLATES, NOTIFICATION_SCHEMA
 
 from core.responses import APIResponse
 from core.permissions import IsAdminOrRoot, IsCommanderOrHR
+from apps.users.models import CommanderProfile, OfficerProfile, CommanderAssignment
 from .models import Notification, SupportTicket, TicketMessage
 from .serializers import (
     NotificationSerializer, SupportTicketSerializer, TicketMessageSerializer
@@ -18,7 +19,30 @@ from .serializers import (
 
 
 def is_staffish(user):
-    return getattr(user, "role", None) in ("HR", "ADMIN", "ROOT", "COMMANDER")
+    return getattr(user, "role", None) in ("HR", "ADMIN", "ROOT")
+
+def _commander_visible_user_ids(user) -> set[int]:
+    """
+    Возвращает множество user.id: сам командир + все офицеры его состава.
+    Состав = офицеры с тем же unit, что и у командира, плюс активные оверрайды CommanderAssignment.
+    """
+    if getattr(user, "role", None) != "COMMANDER":
+        return set()
+    me = CommanderProfile.objects.filter(user=user).select_related("unit").first()
+    if not me or not me.unit_id:
+        return {user.id}
+    today = timezone.now().date()
+    # 1) офицеры его подразделения
+    qs_unit = OfficerProfile.objects.filter(unit_id=me.unit_id).values_list("user_id", flat=True)
+    # 2) активные оверрайды
+    include_officer_ids = CommanderAssignment.objects.filter(
+        commander=me
+    ).filter(
+        Q(until__isnull=True) | Q(until__gte=today)
+    ).values_list("officer_id", flat=True)
+    qs_override = OfficerProfile.objects.filter(id__in=include_officer_ids).values_list("user_id", flat=True)
+    ids = set(qs_unit) | set(qs_override) | {user.id}
+    return ids
 
 
 # ---------- Notifications ----------
@@ -107,7 +131,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 class SupportTicketViewSet(viewsets.ModelViewSet):
     """
     Автор (любой пользователь) — видит и управляет только своими тикетами.
-    HR/COMMANDER/ADMIN/ROOT — видят все тикеты, могут менять статус.
+    HR/ADMIN/ROOT — видят все тикеты, могут менять статус.
     """
     serializer_class = SupportTicketSerializer
     permission_classes = [IsAuthenticated]
@@ -118,23 +142,49 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base = SupportTicket.objects.select_related("author")
         if is_staffish(user):
-            return SupportTicket.objects.select_related("author").all()
-        return SupportTicket.objects.select_related("author").filter(author=user)
+            return base.all()
+        if getattr(user, "role", None) == "COMMANDER":
+            allowed_ids = _commander_visible_user_ids(user)
+            return base.filter(author_id__in=allowed_ids)
+        # прочие — только свои
+        return base.filter(author=user)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
     def update(self, request, *args, **kwargs):
         ticket = self.get_object()
-        if not is_staffish(request.user) and ticket.author_id != request.user.id:
+
+        user = request.user
+        if is_staffish(user):
+            return super().update(request, *args, **kwargs)
+
+        if getattr(user, "role", None) == "COMMANDER":
+            if ticket.author_id in _commander_visible_user_ids(user):
+                return super().update(request, *args, **kwargs)
+            return APIResponse.forbidden("Нет доступа (не ваш состав)")
+
+        if ticket.author_id != user.id:
             return APIResponse.forbidden("Можно редактировать только свой тикет")
+
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         ticket = self.get_object()
-        if not is_staffish(request.user) and ticket.author_id != request.user.id:
+        user = request.user
+        if is_staffish(user):
+            return super().destroy(request, *args, **kwargs)
+
+        if getattr(user, "role", None) == "COMMANDER":
+            if ticket.author_id in _commander_visible_user_ids(user):
+                return super().destroy(request, *args, **kwargs)
+            return APIResponse.forbidden("Нет доступа (не ваш состав)")
+
+        if ticket.author_id != user.id:
             return APIResponse.forbidden("Можно удалять только свой тикет")
+
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"])
@@ -154,9 +204,15 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         body: {"body": "текст"}
         """
         ticket = self.get_object()
-        # доступ: автор или staffish
-        if not (is_staffish(request.user) or ticket.author_id == request.user.id):
+        user = request.user
+        # доступ: HR/ADMIN/ROOT; или автор; или COMMANDER в пределах состава
+        if not (
+            is_staffish(user)
+            or ticket.author_id == user.id
+            or (getattr(user, "role", None) == "COMMANDER" and ticket.author_id in _commander_visible_user_ids(user))
+        ):
             return APIResponse.forbidden("Нет доступа к тикету")
+
         text = request.data.get("body", "").strip()
         if not text:
             return APIResponse.validation_error({"body": ["Сообщение не может быть пустым"]})
@@ -169,7 +225,12 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         Автор может закрыть свой тикет, staff — тоже.
         """
         ticket = self.get_object()
-        if not (is_staffish(request.user) or ticket.author_id == request.user.id):
+        user = request.user
+        if not (
+            is_staffish(user)
+            or ticket.author_id == user.id
+            or (getattr(user, "role", None) == "COMMANDER" and ticket.author_id in _commander_visible_user_ids(user))
+        ):
             return APIResponse.forbidden("Нет доступа")
         ticket.status = SupportTicket.TicketStatus.CLOSED
         ticket.save(update_fields=["status"])
@@ -187,6 +248,9 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         body: {"status": "IN_PROGRESS" | "WAITING" | "RESOLVED" | "CLOSED"}
         """
         ticket = self.get_object()
+        if getattr(request.user, "role", None) == "COMMANDER":
+            if ticket.author_id not in _commander_visible_user_ids(request.user):
+                return APIResponse.forbidden("Командир может менять статус только в тикетах своего состава")
         status_value = request.data.get("status")
         valid = [c[0] for c in SupportTicket.TicketStatus.choices]
         if status_value not in valid:
@@ -209,5 +273,8 @@ class TicketMessageViewSet(viewsets.ReadOnlyModelViewSet):
         qs = TicketMessage.objects.select_related("ticket", "author", "ticket__author")
         if is_staffish(user):
             return qs
-        # не staff: видит сообщения только своих тикетов
-        return qs.filter(Q(ticket__author=user))
+        if getattr(user, "role", None) == "COMMANDER":
+            allowed_ids = _commander_visible_user_ids(user)
+            return qs.filter(ticket__author_id__in=allowed_ids)
+        # не staff и не командир: только свои тикеты
+        return qs.filter(ticket__author=user)
