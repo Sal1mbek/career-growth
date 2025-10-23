@@ -46,6 +46,12 @@ class AuthViewSet(viewsets.ViewSet):
         ser.is_valid(raise_exception=True)
         user = ser.save()
 
+        # NEW: авто-включение 2FA
+        if not user.twofa_secret:
+            user.twofa_secret = base64.b32encode(os.urandom(20)).decode("utf-8").rstrip("=")
+        user.twofa_enabled = True
+        user.save(update_fields=["twofa_enabled", "twofa_secret"])
+
         link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/verify-email/{user.id}"
         try:
             send_verification_email(user, request)
@@ -290,27 +296,24 @@ class UserViewSet(viewsets.ModelViewSet):
         user = request.user
         enabled = str(request.data.get("enabled", "")).lower() in ("1", "true", "yes")
 
-        otpauth = None
-        if enabled:
-            # если секрета нет — сгенерим
-            if not user.twofa_secret:
-                # 20 байт -> base32 для TOTP
-                user.twofa_secret = base64.b32encode(os.urandom(20)).decode("utf-8").rstrip("=")
-            user.twofa_enabled = True
-            # otpauth-ссылка для генерации QR в приложении-аутентификаторе
-            issuer = "CareerGrowth"
-            label = user.email
-            otpauth = f"otpauth://totp/{issuer}:{label}?secret={user.twofa_secret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30"
-        else:
-            user.twofa_enabled = False
-            # при желании можно чистить секрет:
-            # user.twofa_secret = ""
+        # Отключение запрещено
+        if not enabled:
+            return Response(
+                {"detail": "Отключение 2FA запрещено политикой безопасности.", "twofa_enabled": True},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Включаем и выдаём QR (если секрета ещё нет)
+        if not user.twofa_secret:
+            user.twofa_secret = base64.b32encode(os.urandom(20)).decode("utf-8").rstrip("=")
+
+        user.twofa_enabled = True
+        issuer = "CareerGrowth"
+        label = user.email
+        otpauth = f"otpauth://totp/{issuer}:{label}?secret={user.twofa_secret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30"
 
         user.save(update_fields=["twofa_enabled", "twofa_secret"])
-        resp = {"twofa_enabled": user.twofa_enabled}
-        if otpauth:
-            resp["otpauth_url"] = otpauth
-        return Response(resp)
+        return Response({"twofa_enabled": True, "otpauth_url": otpauth})
 
 
 # -------- Профили --------

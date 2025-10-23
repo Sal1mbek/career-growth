@@ -157,7 +157,7 @@ class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
             "photo", "iin", "birth_place", "nationality",
             "marital_status", "combat_participation", "combat_notes",
             "service_start_date",
-            "rank_assignment_info",
+            "rank_assignment_info", "rank",
             "personal_number", "children_count", "awards", "penalties",
             "education_civil", "education_military",
             "service_history",
