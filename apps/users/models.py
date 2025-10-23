@@ -110,6 +110,25 @@ class BasePersonProfile(models.Model):
 
 
 class OfficerProfile(BasePersonProfile):
+    # 1) Звание: текст про присвоение (пока просто "приказ/дата" или rank.since как строка)
+    rank_assignment_info = models.CharField(max_length=255, blank=True)  # например: "Приказ №123 от 2023-08-01"
+
+    # 2) Личное
+    personal_number = models.CharField(max_length=32, blank=True)  # "З-516544"
+    children_count = models.PositiveSmallIntegerField(default=0)
+
+    # 2б) Гос. награды / взыскания (как свободный текст)
+    awards = models.TextField(blank=True)  # "Благодарственное письмо МО (2022)"
+    penalties = models.TextField(blank=True)  # "Строгий выговор (2019)"
+
+    # 3) Образование (короткие строки)
+    education_civil = models.CharField(max_length=255, blank=True)  # "АУЭС (2012)"
+    education_military = models.CharField(max_length=255, blank=True)  # "НУО (АСУ, 2018)"
+
+    # 5) История должностей — лёгкий JSON без связей
+    # Формат элемента: {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD|null", "position": "строка"}
+    service_history = models.JSONField(default=list, blank=True)
+
     def __str__(self):
         return self._short()
 

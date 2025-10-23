@@ -18,6 +18,12 @@ class OfficerDocument(models.Model):
     class DocumentType(models.TextChoices):
         DIPLOMA = 'DIPLOMA', 'Диплом'
         CERTIFICATE = 'CERTIFICATE', 'Сертификат'
+        OFFICER_ID = 'OFFICER_ID', 'Удостоверение офицера'
+        PERSONAL_ID = 'PERSONAL_ID', 'Удостоверение личности'
+        PASSPORT = 'PASSPORT', 'Паспорт'
+        DRIVING_LICENSE = 'DRIVING_LICENSE', 'Водительское удостоверение'
+        MARRIAGE_CERT = 'MARRIAGE_CERT', 'Свидетельство о браке'
+        CHILD_BIRTH_CERT = 'CHILD_BIRTH_CERT', 'Свидетельство о рождении ребёнка'
         OTHER = 'OTHER', 'Прочее'
 
     officer = models.ForeignKey('users.OfficerProfile', on_delete=models.CASCADE, related_name='documents')

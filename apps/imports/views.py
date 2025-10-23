@@ -109,6 +109,15 @@ def _map_marital_status(text: str) -> str:
     # иначе не трогаем (пускай вручную поправят)
     return ""
 
+def _extract_children_count(text: str) -> int:
+    """
+    Из строки типа 'женат, 1 ребёнок' или 'женат, 2 детей' достаём число.
+    Если не найдено — 0.
+    """
+    t = (text or "").lower()
+    m = re.search(r'(\d+)\s*(?:реб|дет)', t)
+    return int(m.group(1)) if m else 0
+
 
 def parse_ld8_docx(file_bytes: bytes, filename: str) -> dict:
     doc = Document(BytesIO(file_bytes))
@@ -298,7 +307,7 @@ class LD8ZipImportView(APIView):
 
         dry_run = str(request.data.get("dry_run", "true")).lower() in ("1", "true", "yes", "on")
         create_users = str(request.data.get("create_users", "false")).lower() in ("1", "true", "yes", "on")
-        set_rank = str(request.data.get("set_rank", "false")).lower() in ("1", "true", "yes", "on")
+        set_rank = str(request.data.get("set_rank", "true")).lower() in ("1", "true", "yes", "on")
         unit_id = request.data.get("unit_id")
         unit = None
         if unit_id:
@@ -394,6 +403,56 @@ class LD8ZipImportView(APIView):
 
                 if unit:
                     prof.unit = unit
+
+                # 1) Временное поле про присвоение звания — кладём просто дату из rank.since как строку
+                rinfo = (item.get("rank") or {}).get("since")
+                if rinfo:
+                    # именно строкой, как ты просил
+                    prof.rank_assignment_info = rinfo
+
+                # 2) Личный номер
+                pn = (item.get("personal_number") or "").strip()
+                if pn:
+                    prof.personal_number = pn
+
+                # 2б) Кол-во детей из строки семейного положения
+                ms_raw = item.get("marital_status") or ""
+                cnt = _extract_children_count(ms_raw)
+                if cnt:
+                    prof.children_count = cnt
+
+                # 2в) Гос. награды / взыскания — как свободный текст
+                aw = (item.get("awards") or "").strip()
+                if aw:
+                    prof.awards = aw
+                pe = (item.get("penalties") or "").strip()
+                if pe:
+                    prof.penalties = pe
+
+                # 3) Образование (короткие строки)
+                edu = item.get("education") or {}
+                if edu.get("civil"):
+                    prof.education_civil = edu["civil"]
+                if edu.get("military"):
+                    prof.education_military = edu["military"]
+
+                # 5) История должностей — JSON-список [{from,to,position}]
+                hist = item.get("service_history") or []
+                # легкая фильтрация мусора
+                clean_hist = []
+                for h in hist:
+                    if not isinstance(h, dict):
+                        continue
+                    frm = h.get("from")
+                    pos = (h.get("position") or "").strip()
+                    if frm and pos:
+                        clean_hist.append({
+                            "from": frm,
+                            "to": h.get("to"),
+                            "position": pos
+                        })
+                if clean_hist:
+                    prof.service_history = clean_hist
 
                 # Участие в боевых действиях
                 cp_text = (item.get("combat_participation") or "").strip()

@@ -104,6 +104,11 @@ class OfficerProfileSerializer(serializers.ModelSerializer):
             "marital_status", "combat_participation", "combat_notes",
             "rank", "rank_name", "unit", "unit_name",
             "current_position", "position_title", "service_start_date",
+            # NEW:
+            "rank_assignment_info",
+            "personal_number", "children_count", "awards", "penalties",
+            "education_civil", "education_military",
+            "service_history",
             "languages", "age", "service_years",
         ]
         extra_kwargs = {"photo": {"write_only": True, "required": False}}
@@ -152,6 +157,10 @@ class OfficerProfileUpdateSerializer(serializers.ModelSerializer):
             "photo", "iin", "birth_place", "nationality",
             "marital_status", "combat_participation", "combat_notes",
             "service_start_date",
+            "rank_assignment_info",
+            "personal_number", "children_count", "awards", "penalties",
+            "education_civil", "education_military",
+            "service_history",
         ]
 
 

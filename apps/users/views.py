@@ -496,6 +496,52 @@ class OfficerProfileViewSet(viewsets.ModelViewSet):
         profile.save(update_fields=['photo'])
         return Response({'photo_url': request.build_absolute_uri(profile.photo.url)})
 
+    from rest_framework.decorators import action
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def history_add(self, request, pk=None):
+        """
+        Добавить запись в service_history.
+        body: {"from":"YYYY-MM-DD","to":"YYYY-MM-DD|null","position":"текст"}
+        OFFICER — может только в свой профиль.
+        """
+        obj = self.get_object()
+        if request.user.role == "OFFICER" and obj.user_id != request.user.id:
+            return Response({"detail": "Forbidden"}, status=403)
+        item = {
+            "from": request.data.get("from"),
+            "to": request.data.get("to"),
+            "position": (request.data.get("position") or "").strip()
+        }
+        if not item["from"] or not item["position"]:
+            return Response({"detail": "from и position обязательны"}, status=400)
+        hist = list(obj.service_history or [])
+        hist.append(item)
+        obj.service_history = hist
+        obj.save(update_fields=["service_history"])
+        return Response({"service_history": obj.service_history}, status=201)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def history_replace(self, request, pk=None):
+        """
+        Полностью заменить service_history списком.
+        body: [{"from":"YYYY-MM-DD","to":null,"position":"..."}, ...]
+        """
+        obj = self.get_object()
+        if request.user.role == "OFFICER" and obj.user_id != request.user.id:
+            return Response({"detail": "Forbidden"}, status=403)
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Ожидается список объектов"}, status=400)
+        # легкая валидация
+        for i, row in enumerate(data, 1):
+            if not isinstance(row, dict) or not row.get("from") or not row.get("position"):
+                return Response({"detail": f"Элемент #{i}: нужны поля 'from' и 'position'"},
+                                status=400)
+        obj.service_history = data
+        obj.save(update_fields=["service_history"])
+        return Response({"service_history": obj.service_history})
+
 
 # ---- Языки ----
 class OfficerLanguageViewSet(viewsets.ModelViewSet):

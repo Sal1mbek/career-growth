@@ -83,20 +83,28 @@ class OfficerLanguageInline(admin.TabularInline):
 
 @admin.register(OfficerProfile)
 class OfficerProfileAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "full_name", "iin", "rank", "unit", "current_position", "service_start_date", "combat_participation")
-    search_fields = ("user__email", "full_name", "iin")
+    list_display = ("id", "user", "full_name", "iin", "personal_number", "rank", "rank_assignment_info", "unit",
+                    "current_position", "service_start_date", "children_count", "combat_participation")
+    search_fields = ("user__email", "full_name", "iin", "personal_number")
     list_filter = ("rank", "unit", "current_position", "marital_status", "combat_participation")
     inlines = [OfficerLanguageInline]
     fieldsets = (
         ("Пользователь", {"fields": ("user",)}),
         ("Основная информация", {
-            "fields": ("full_name", "birth_date", "phone", "iin")
+            "fields": ("full_name", "birth_date", "phone", "iin", "personal_number")
         }),
         ("Личные данные", {
-            "fields": ("birth_place", "nationality", "marital_status")
+            "fields": ("birth_place", "nationality", "children_count", "marital_status")
         }),
         ("Служба", {
-            "fields": ("rank", "unit", "current_position", "service_start_date")
+            "fields": ("rank", "rank_assignment_info", "unit", "current_position", "service_start_date",
+                       "service_history")
+        }),
+        ("Образование", {
+            "fields": ("education_civil", "education_military")
+        }),
+        ("Награды / Взыскания", {
+            "fields": ("awards", "penalties")
         }),
         ("Боевая подготовка", {
             "fields": ("combat_participation", "combat_notes")
