@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Rank, Unit, Position, PositionRequirement, Competency, CompetencyRequirement, Provider, TrainingCourse
+    Rank, Unit, Position, PositionRequirement, Competency, CompetencyRequirement, Provider, TrainingCourse, PositionQualification
 )
 
 
@@ -65,4 +65,17 @@ class TrainingCourseSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "code", "provider", "provider_name", "hours", "tags", "related_competencies_ids", "is_active"]
 
 
+class PositionQualificationSerializer(serializers.ModelSerializer):
+    position_title = serializers.CharField(source="position.title", read_only=True)
 
+    class Meta:
+        model = PositionQualification
+        fields = [
+            "id",
+            "position",
+            "position_title",
+            "category",
+            "text",
+            "order",
+            "source",
+        ]

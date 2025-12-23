@@ -28,9 +28,15 @@ class Unit(models.Model):
 class Position(models.Model):
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("unit", "code")
+        indexes = [
+            models.Index(fields=["unit", "code"]),
+        ]
 
     def __str__(self):
         unit = self.unit.name if self.unit else ""
@@ -79,3 +85,38 @@ class TrainingCourse(models.Model):
     tags = models.JSONField(default=list, blank=True)
     related_competencies = models.ManyToManyField(Competency, related_name='training_courses', blank=True)
     is_active = models.BooleanField(default=True)
+
+
+class PositionQualification(models.Model):
+    class Category(models.TextChoices):
+        EDUCATION = "EDUCATION", "Образование"
+        EXPERIENCE = "EXPERIENCE", "Опыт службы"
+        FUNCTIONS = "FUNCTIONS", "Функциональные обязанности"
+        COMPETENCY = "COMPETENCY", "Компетенции"
+
+    position = models.ForeignKey(
+        Position,
+        on_delete=models.CASCADE,
+        related_name="qualifications"
+    )
+
+    category = models.CharField(
+        max_length=32,
+        choices=Category.choices
+    )
+
+    text = models.TextField()
+    order = models.PositiveSmallIntegerField(default=0)
+
+    source = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Источник (приказ, пункт, год)"
+    )
+
+    class Meta:
+        ordering = ["category", "order"]
+        indexes = [
+            models.Index(fields=["position", "category"]),
+        ]
+

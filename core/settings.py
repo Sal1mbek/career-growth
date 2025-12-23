@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'apps.audit',
     'apps.discipline',
     'apps.imports',
+    'apps.document_parsing'
 ]
 
 MIDDLEWARE = [

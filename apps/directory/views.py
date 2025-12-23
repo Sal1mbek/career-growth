@@ -1,15 +1,17 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, filters
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from core.permissions import IsAdminOrRoot, ReadOnlyOrStaffish, IsHR
 from .models import (
     Rank, Unit, Position, PositionRequirement,
-    Competency, CompetencyRequirement, Provider, TrainingCourse
+    Competency, CompetencyRequirement, Provider, TrainingCourse, PositionQualification
 )
 from .serializers import (
     RankSerializer, UnitSerializer, PositionSerializer, PositionRequirementSerializer,
-    CompetencySerializer, CompetencyRequirementSerializer, ProviderSerializer, TrainingCourseSerializer
+    CompetencySerializer, CompetencyRequirementSerializer, ProviderSerializer, TrainingCourseSerializer, PositionQualificationSerializer
 )
 from apps.users.models import CommanderProfile
 
@@ -100,3 +102,43 @@ class TrainingCourseViewSet(BaseCatalogViewSet):
     serializer_class = TrainingCourseSerializer
     filterset_fields = ["is_active", "provider", "hours"]
     search_fields = ["title", "code", "provider__name", "tags"]
+
+
+class PositionQualificationViewSet(BaseCatalogViewSet):
+    queryset = PositionQualification.objects.select_related("position").all()
+    serializer_class = PositionQualificationSerializer
+
+    filterset_fields = ["position", "category"]
+    search_fields = ["text", "position__title"]
+    ordering_fields = ["order", "category"]
+
+    @action(detail=False, methods=["get"], url_path="by-position")
+    def by_position(self, request):
+        position_id = request.query_params.get("position")
+
+        if not position_id:
+            return Response(
+                {"detail": "position обязателен"},
+                status=400
+            )
+
+        qs = self.filter_queryset(
+            self.get_queryset().filter(position_id=position_id)
+        )
+
+        result = {
+            "EDUCATION": [],
+            "EXPERIENCE": [],
+            "FUNCTIONS": [],
+            "COMPETENCY": [],
+        }
+
+        for item in qs:
+            result[item.category].append({
+                "id": item.id,
+                "text": item.text,
+                "order": item.order,
+                "source": item.source,
+            })
+
+        return Response(result)

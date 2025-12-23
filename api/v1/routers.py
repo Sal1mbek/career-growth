@@ -8,7 +8,7 @@ from apps.users.views import AuthViewSet
 
 from apps.directory.views import (
     RankViewSet, UnitViewSet, PositionViewSet, PositionRequirementViewSet, CompetencyViewSet,
-    CompetencyRequirementViewSet, ProviderViewSet, TrainingCourseViewSet
+    CompetencyRequirementViewSet, ProviderViewSet, TrainingCourseViewSet, PositionQualificationViewSet
 )
 
 from apps.officers.views import (
@@ -32,7 +32,12 @@ from apps.audit.views import AuditLogViewSet
 
 from apps.discipline.views import RewardViewSet, SanctionViewSet
 
+from apps.document_parsing.views import DocumentParsingViewSet
+
+
 router = DefaultRouter()
+
+router.register(r'document-parsing', DocumentParsingViewSet, basename='document-parsing')
 
 
 # Directory (справочники)
@@ -40,6 +45,7 @@ router.register(r'directory/ranks', RankViewSet, basename='dir-ranks')
 router.register(r'directory/units', UnitViewSet, basename='dir-units')
 router.register(r'directory/positions', PositionViewSet, basename='dir-positions')
 router.register(r'directory/position-requirements', PositionRequirementViewSet, basename='dir-position-reqs')
+router.register(r'directory/position-qualifications', PositionQualificationViewSet, basename='dir-position-qualifications')
 router.register(r'directory/competencies', CompetencyViewSet, basename='dir-competencies')
 router.register(r'directory/competency-requirements', CompetencyRequirementViewSet, basename='dir-competency-reqs')
 router.register(r'directory/providers', ProviderViewSet, basename='dir-providers')

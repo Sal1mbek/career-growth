@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
-    Rank, Unit, Position, PositionRequirement, Competency, CompetencyRequirement, Provider, TrainingCourse
+    Rank, Unit, Position, PositionRequirement, Competency, CompetencyRequirement, Provider, TrainingCourse,
+    PositionQualification
 )
 
 
@@ -55,3 +56,11 @@ class TrainingCourseAdmin(admin.ModelAdmin):
     list_display = ("id", "code", "title", "provider", "hours", "is_active")
     search_fields = ("code", "title", "provider__name")
     list_filter = ("provider", "is_active")
+
+
+@admin.register(PositionQualification)
+class PositionQualificationAdmin(admin.ModelAdmin):
+    list_display = ("id", "position", "category", "order")
+    list_filter = ("category",)
+    search_fields = ("text", "position__title")
+    ordering = ("category", "order")
